@@ -1,0 +1,34 @@
+;------------------------------------------------------------------------------------------------
+; PE x86 Library
+;
+; Paste this text at the end of \Radasm\masm\masmApiCall.api to add these to Radasm
+;
+;------------------------------------------------------------------------------------------------
+PE_OpenFile,lpszPEFilename
+PE_CloseFile,hPE
+PE_Analyze,pPEInMemory
+PE_Finish,hPE
+PE_GetError
+; Header Pointer Functions:
+PE_HeaderDOS,hPE
+PE_HeaderNT,hPE
+PE_HeaderFile,hPE
+PE_HeaderOptional,hPE
+PE_HeaderSections,hPE
+PE_DirectoryExportTable,hPE
+PE_DirectoryImportTable,hPE
+; Section Functions:
+PE_SectionHeaderCount,hPE
+PE_SectionsHeaders,hPE
+PE_SectionHeaderByIndex,hPE,dwSectionIndex
+PE_SectionHeaderByName,hPE,lpszSectionName
+PE_SectionHeaderByType,hPE,dwSectionType
+; Common Info Functions:
+PE_Machine,hPE
+PE_Characteristics,hPE
+PE_AddressOfEntryPoint,hPE
+PE_ImageBase,hPE
+PE_Subsystem,hPE
+PE_DllCharacteristics,hPE
+PE_IsDll,hPE
+PE_Is64,hPE
