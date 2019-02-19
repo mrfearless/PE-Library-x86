@@ -41,29 +41,42 @@
 ;------------------------------------------------------------------------------
 ; PE Prototypes
 ;------------------------------------------------------------------------------
-PE_OpenFile             PROTO :DWORD                    ; lpszPEFilename. Returns in eax a handle used in other functions: hPE
-PE_CloseFile            PROTO :DWORD                    ; hPE returned from PE_OpenFile.
-PE_Analyze              PROTO :DWORD                    ; pPEInMemory. Returns in eax a handle used in other functions: hPE
-PE_Finish               PROTO :DWORD                    ; hPE returned from PE_Analyze.
+PE_OpenFile             PROTO :DWORD,:DWORD                     ; lpszPEFilename, bReadOnly. Returns in eax a handle used in other functions: hPE
+PE_CloseFile            PROTO :DWORD                            ; hPE returned from PE_OpenFile.
+PE_Analyze              PROTO :DWORD                            ; pPEInMemory. Returns in eax a handle used in other functions: hPE
+PE_Finish               PROTO :DWORD                            ; hPE returned from PE_Analyze.
 PE_GetError             PROTO
 
 ; Header Pointer Functions:
-PE_HeaderDOS            PROTO :DWORD                    ; hPE
-PE_HeaderNT             PROTO :DWORD                    ; hPE
-PE_HeaderFile           PROTO :DWORD                    ; hPE
-PE_HeaderOptional       PROTO :DWORD                    ; hPE
-PE_HeaderSections       PROTO :DWORD                    ; hPE
-PE_DirectoryExportTable PROTO :DWORD                    ; hPE
-PE_DirectoryImportTable PROTO :DWORD                    ; hPE
+PE_HeaderDOS            PROTO :DWORD                            ; hPE
+PE_HeaderNT             PROTO :DWORD                            ; hPE
+PE_HeaderFile           PROTO :DWORD                            ; hPE
+PE_HeaderOptional       PROTO :DWORD                            ; hPE
+PE_HeaderSections       PROTO :DWORD                            ; hPE
+PE_DirectoryExportTable PROTO :DWORD                            ; hPE
+PE_DirectoryImportTable PROTO :DWORD                            ; hPE
 
 ; Section Functions:
-PE_SectionHeaderCount   PROTO :DWORD                    ; hPE
-PE_SectionsHeaders      PROTO :DWORD                    ; hPE
-PE_SectionHeaderByIndex PROTO :DWORD, :DWORD            ; hPE, dwSectionIndex
-PE_SectionHeaderByName  PROTO :DWORD, :DWORD            ; hPE, lpszSectionName
-PE_SectionHeaderByType  PROTO :DWORD, :DWORD            ; hPE, dwSectionType
+PE_SectionHeaderCount   PROTO :DWORD                            ; hPE
+PE_SectionsHeaders      PROTO :DWORD                            ; hPE
+PE_SectionHeaderByIndex PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
+PE_SectionHeaderByName  PROTO :DWORD,:DWORD                     ; hPE, lpszSectionName
+PE_SectionHeaderByType  PROTO :DWORD,:DWORD                     ; hPE, dwSectionType
+PE_SectionHeaderByAddr  PROTO :DWORD,:DWORD                     ; hPE, dwAddress
+
+PE_SectionAdd           PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics
+PE_SectionDelete        PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpszSectionName, dwSectionIndex
+PE_SectionInsert        PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics, dwSectionIndex
+PE_SectionMove          PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionIndex, lpszSectionNameToMoveTo, dwSectionIndexToMoveTo
+
+
 
 ; Common Info Functions
+;------------------------------------------------------------------------------
+; Note: Only some functions are provided for reading commonly accessed fields
+; in various PE structures. Others can be read by obtaining the pointer to the
+; relevant PE structure and reading the required field(s) directly.
+;------------------------------------------------------------------------------
 PE_Machine              PROTO :DWORD                    ; hPE
 PE_Characteristics      PROTO :DWORD                    ; hPE
 PE_AddressOfEntryPoint  PROTO :DWORD                    ; hPE
@@ -264,16 +277,19 @@ PE32                            EQU PE_ARCH_32
 PE64                            EQU PE_ARCH_64
 
 ; PE Error Enums:
-PE_ERROR_ANALYZE_NULL           EQU -9 ; PE memory address is 0 or size is 0
-PE_ERROR_ANALYZE_INVALID        EQU -8 ; Invalid magic no or signature 
-PE_ERROR_ANALYZE_ALLOC          EQU -7 ; Could not allocate memory for initial analysis
-PE_ERROR_OPEN_VIEW              EQU -6 ; Could not map a view of PE file
-PE_ERROR_OPEN_MAP               EQU -5 ; Could not map PE file
-PE_ERROR_OPEN_SIZE_HIGH         EQU -4 ; File size too large to be a valid PE file
-PE_ERROR_OPEN_SIZE_LOW          EQU -3 ; File size too low to be a valid PE file
-PE_ERROR_OPEN_FILE              EQU -2 ; Error opening PE file
-PE_ERROR_OPEN_INVALID           EQU -1 ; Not a valid PE file 
-PE_ERROR_SUCCESS                EQU  0 ; Success
+PE_ERROR_SECTION_INS            EQU -12 ; Failed to add and insert section to PE file
+PE_ERROR_SECTION_DEL            EQU -11 ; Failed to delete section to PE file
+PE_ERROR_SECTION_ADD            EQU -10 ; Failed to add section to PE file
+PE_ERROR_ANALYZE_NULL           EQU  -9 ; PE memory address is 0 or size is 0
+PE_ERROR_ANALYZE_INVALID        EQU  -8 ; Invalid magic no or signature 
+PE_ERROR_ANALYZE_ALLOC          EQU  -7 ; Could not allocate memory for initial analysis
+PE_ERROR_OPEN_VIEW              EQU  -6 ; Could not map a view of PE file
+PE_ERROR_OPEN_MAP               EQU  -5 ; Could not map PE file
+PE_ERROR_OPEN_SIZE_HIGH         EQU  -4 ; File size too large to be a valid PE file
+PE_ERROR_OPEN_SIZE_LOW          EQU  -3 ; File size too low to be a valid PE file
+PE_ERROR_OPEN_FILE              EQU  -2 ; Error opening PE file
+PE_ERROR_OPEN_INVALID           EQU  -1 ; Not a valid PE file 
+PE_ERROR_SUCCESS                EQU   0 ; Success
 
 ; dwSectionType for PE_SectionHeaderByType:
 SEC_BSS                         EQU  0 ; .bss - Uninitialized data (free format)
@@ -352,32 +368,32 @@ IMAGE_FILE_MACHINE_THUMB        EQU 01C2h ; Thumb
 IMAGE_FILE_MACHINE_WCEMIPSV2    EQU 0169h ; MIPS little-endian WCE v2 
 
 ; Characteristics:
-IMAGE_FILE_RELOCS_STRIPPED         EQU 0001h    ; Image only, Windows CE, and Microsoft Windows NT and later. This indicates that the file does not contain base relocations and must therefore be loaded at its preferred base address.
-IMAGE_FILE_EXECUTABLE_IMAGE        EQU 0002h    ; Image only. This indicates that the image file is valid and can be run. If this flag is not set, it indicates a linker error.
-IMAGE_FILE_LINE_NUMS_STRIPPED      EQU 0004h    ; COFF line numbers have been removed. This flag is deprecated and should be zero.
-IMAGE_FILE_LOCAL_SYMS_STRIPPED     EQU 0008h    ; COFF symbol table entries for local symbols have been removed. This flag is deprecated and should be zero.
-IMAGE_FILE_AGGRESSIVE_WS_TRIM      EQU 0010h    ; Obsolete. Aggressively trim working set. This flag is deprecated for Windows 2000 and later and must be zero.
-IMAGE_FILE_LARGE_ADDRESS_AWARE     EQU 0020h    ; Application can handle > 2-GB addresses.
-IMAGE_FILE_RESERVED_FUTURE_USE     EQU 0040h    ; This flag is reserved for future use.
-IMAGE_FILE_BYTES_REVERSED_LO       EQU 0080h    ; Little endian: the least significant bit (LSB) precedes the most significant bit (MSB) in memory. This flag is deprecated and should be zero.
-IMAGE_FILE_32BIT_MACHINE           EQU 0100h    ; Machine is based on a 32-bit-word architecture.
-IMAGE_FILE_DEBUG_STRIPPED          EQU 0200h    ; Debugging information is removed from the image file.
-IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP EQU 0400h    ; If the image is on removable media, fully load it and copy it to the swap file.
-IMAGE_FILE_NET_RUN_FROM_SWAP       EQU 0800h    ; If the image is on network media, fully load it and copy it to the swap file.
-IMAGE_FILE_SYSTEM                  EQU 1000h    ; The image file is a system file, not a user program.
-IMAGE_FILE_DLL                     EQU 2000h    ; The image file is a dynamic-link library (DLL). Such files are considered executable files for almost all purposes, although they cannot be directly run.
-IMAGE_FILE_UP_SYSTEM_ONLY          EQU 4000h    ; The file should be run only on a uniprocessor machine.
-IMAGE_FILE_BYTES_REVERSED_HI       EQU 8000h    ; Big endian: the MSB precedes the LSB in memory. This flag is deprecated and should be zero. 
+IMAGE_FILE_RELOCS_STRIPPED         EQU 0001h ; Image only, Windows CE, and Microsoft Windows NT and later. This indicates that the file does not contain base relocations and must therefore be loaded at its preferred base address.
+IMAGE_FILE_EXECUTABLE_IMAGE        EQU 0002h ; Image only. This indicates that the image file is valid and can be run. If this flag is not set, it indicates a linker error.
+IMAGE_FILE_LINE_NUMS_STRIPPED      EQU 0004h ; COFF line numbers have been removed. This flag is deprecated and should be zero.
+IMAGE_FILE_LOCAL_SYMS_STRIPPED     EQU 0008h ; COFF symbol table entries for local symbols have been removed. This flag is deprecated and should be zero.
+IMAGE_FILE_AGGRESSIVE_WS_TRIM      EQU 0010h ; Obsolete. Aggressively trim working set. This flag is deprecated for Windows 2000 and later and must be zero.
+IMAGE_FILE_LARGE_ADDRESS_AWARE     EQU 0020h ; Application can handle > 2-GB addresses.
+IMAGE_FILE_RESERVED_FUTURE_USE     EQU 0040h ; This flag is reserved for future use.
+IMAGE_FILE_BYTES_REVERSED_LO       EQU 0080h ; Little endian: the least significant bit (LSB) precedes the most significant bit (MSB) in memory. This flag is deprecated and should be zero.
+IMAGE_FILE_32BIT_MACHINE           EQU 0100h ; Machine is based on a 32-bit-word architecture.
+IMAGE_FILE_DEBUG_STRIPPED          EQU 0200h ; Debugging information is removed from the image file.
+IMAGE_FILE_REMOVABLE_RUN_FROM_SWAP EQU 0400h ; If the image is on removable media, fully load it and copy it to the swap file.
+IMAGE_FILE_NET_RUN_FROM_SWAP       EQU 0800h ; If the image is on network media, fully load it and copy it to the swap file.
+IMAGE_FILE_SYSTEM                  EQU 1000h ; The image file is a system file, not a user program.
+IMAGE_FILE_DLL                     EQU 2000h ; The image file is a dynamic-link library (DLL). Such files are considered executable files for almost all purposes, although they cannot be directly run.
+IMAGE_FILE_UP_SYSTEM_ONLY          EQU 4000h ; The file should be run only on a uniprocessor machine.
+IMAGE_FILE_BYTES_REVERSED_HI       EQU 8000h ; Big endian: the MSB precedes the LSB in memory. This flag is deprecated and should be zero. 
 
 ; Windows Subsystem:
-IMAGE_SUBSYSTEM_UNKNOWN                  EQU 0  ; An unknown subsystem
-IMAGE_SUBSYSTEM_NATIVE                   EQU 1  ; Device drivers and native Windows processes
-IMAGE_SUBSYSTEM_WINDOWS_GUI              EQU 2  ; The Windows graphical user interface (GUI) subsystem
-IMAGE_SUBSYSTEM_WINDOWS_CUI              EQU 3  ; The Windows character subsystem
-IMAGE_SUBSYSTEM_OS2_CUI                  EQU 5  ; The OS/2 character subsystem
-IMAGE_SUBSYSTEM_POSIX_CUI                EQU 7  ; The Posix character subsystem
-IMAGE_SUBSYSTEM_NATIVE_WINDOWS           EQU 8  ; Native Win9x driver
-IMAGE_SUBSYSTEM_WINDOWS_CE_GUI           EQU 9  ; Windows CE
+IMAGE_SUBSYSTEM_UNKNOWN                  EQU  0 ; An unknown subsystem
+IMAGE_SUBSYSTEM_NATIVE                   EQU  1 ; Device drivers and native Windows processes
+IMAGE_SUBSYSTEM_WINDOWS_GUI              EQU  2 ; The Windows graphical user interface (GUI) subsystem
+IMAGE_SUBSYSTEM_WINDOWS_CUI              EQU  3 ; The Windows character subsystem
+IMAGE_SUBSYSTEM_OS2_CUI                  EQU  5 ; The OS/2 character subsystem
+IMAGE_SUBSYSTEM_POSIX_CUI                EQU  7 ; The Posix character subsystem
+IMAGE_SUBSYSTEM_NATIVE_WINDOWS           EQU  8 ; Native Win9x driver
+IMAGE_SUBSYSTEM_WINDOWS_CE_GUI           EQU  9 ; Windows CE
 IMAGE_SUBSYSTEM_EFI_APPLICATION          EQU 10 ; An Extensible Firmware Interface (EFI) application
 IMAGE_SUBSYSTEM_EFI_BOOT_SERVICE_DRIVER  EQU 11 ; An EFI driver with boot services
 IMAGE_SUBSYSTEM_EFI_RUNTIME_DRIVER       EQU 12 ; An EFI driver with run-time services
@@ -403,18 +419,18 @@ IMAGE_DLLCHARACTERISTICS_GUARD_CF              EQU 4000h ; Image supports Contro
 IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE EQU 8000h ; Terminal Server aware.
 
 ; Section Flags:
-IMAGE_SCN_RESERVED1 	          EQU 00000000h ; Reserved for future use.
-IMAGE_SCN_RESERVED2	              EQU 00000001h ; Reserved for future use.
-IMAGE_SCN_RESERVED3	              EQU 00000002h ; Reserved for future use.
-IMAGE_SCN_RESERVED4	              EQU 00000004h ; Reserved for future use.
+IMAGE_SCN_RESERVED1               EQU 00000000h ; Reserved for future use.
+IMAGE_SCN_RESERVED2               EQU 00000001h ; Reserved for future use.
+IMAGE_SCN_RESERVED3               EQU 00000002h ; Reserved for future use.
+IMAGE_SCN_RESERVED4               EQU 00000004h ; Reserved for future use.
 IMAGE_SCN_TYPE_NO_PAD             EQU 00000008h ; The section should not be padded to the next boundary. This flag is obsolete and is replaced by IMAGE_SCN_ALIGN_1BYTES. This is valid only for object files.
-IMAGE_SCN_RESERVED5	              EQU 00000010h ; Reserved for future use.
+IMAGE_SCN_RESERVED5               EQU 00000010h ; Reserved for future use.
 IMAGE_SCN_CNT_CODE                EQU 00000020h ; The section contains executable code.
 IMAGE_SCN_CNT_INITIALIZED_DATA    EQU 00000040h ; The section contains initialized data.
 IMAGE_SCN_CNT_UNINITIALIZED_DATA  EQU 00000080h ; The section contains uninitialized data.
 IMAGE_SCN_LNK_OTHER               EQU 00000100h ; Reserved for future use.
 IMAGE_SCN_LNK_INFO                EQU 00000200h ; The section contains comments or other information. The .drectve section has this type. This is valid for object files only.
-IMAGE_SCN_RESERVED6	              EQU 00000400h ; Reserved for future use.
+IMAGE_SCN_RESERVED6               EQU 00000400h ; Reserved for future use.
 IMAGE_SCN_LNK_REMOVE              EQU 00000800h ; The section will not become part of the image. This is valid only for object files.
 IMAGE_SCN_LNK_COMDAT              EQU 00001000h ; The section contains COMDAT data. For more information, see COMDAT Sections (Object Only). This is valid only for object files.
 IMAGE_SCN_GPREL                   EQU 00008000h ; The section contains data referenced through the global pointer (GP).
@@ -508,7 +524,25 @@ IMAGE_REL_IA64_TOKEN      EQU 001bh ; A CLR token.
 IMAGE_REL_IA64_GPREL32    EQU 001ch ; A 32-bit GP-relative fixup.
 IMAGE_REL_IA64_ADDEND     EQU 001Fh ; The relocation is valid only when it immediately follows one of the following relocations: IMM14, IMM22, IMM64, GPREL22, LTOFF22, LTOFF64, SECREL22, SECREL64I, or SECREL32. 
 
+; Data Directory Indexes:
+IMAGE_DIRECTORY_ENTRY_EXPORT         EQU  0 ; Export directory
+IMAGE_DIRECTORY_ENTRY_IMPORT         EQU  1 ; Import directory
+IMAGE_DIRECTORY_ENTRY_RESOURCE       EQU  2 ; Resource directory 
+IMAGE_DIRECTORY_ENTRY_EXCEPTION      EQU  3 ; Exception directory
+IMAGE_DIRECTORY_ENTRY_SECURITY       EQU  4 ; Security directory 
+IMAGE_DIRECTORY_ENTRY_BASERELOC      EQU  5 ; Base relocation table 
+IMAGE_DIRECTORY_ENTRY_DEBUG          EQU  6 ; Debug directory
+IMAGE_DIRECTORY_ENTRY_ARCHITECTURE   EQU  7 ; Architecture-specific data
+IMAGE_DIRECTORY_ENTRY_GLOBALPTR      EQU  8 ; The relative virtual address of global pointer
+IMAGE_DIRECTORY_ENTRY_TLS            EQU  9 ; Thread local storage directory
+IMAGE_DIRECTORY_ENTRY_LOAD_CONFIG    EQU 10 ; Load configuration directory
+IMAGE_DIRECTORY_ENTRY_BOUND_IMPORT   EQU 11 ; Bound import directory
+IMAGE_DIRECTORY_ENTRY_IAT            EQU 12 ; Import address table
+IMAGE_DIRECTORY_ENTRY_DELAY_IMPORT   EQU 13 ; Delay import table
+IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR EQU 14 ; COM descriptor table
+IMAGE_DIRECTORY_ENTRY_RESERVED       EQU 15 ; Reserved
 
+IMAGE_NUMBEROF_DIRECTORY_ENTRIES     EQU 16
 
 
 

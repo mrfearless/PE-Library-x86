@@ -68,6 +68,10 @@ include PE.inc
 ;-------------------------------------------------------------------------
 PESignature             PROTO :DWORD
 PEJustFname             PROTO :DWORD, :DWORD
+
+PEIncreaseFileSize      PROTO :DWORD, :DWORD
+PEDecreaseFileSize      PROTO :DWORD, :DWORD
+
 PE_SetError             PROTO :DWORD
 
 PUBLIC PELIB_ErrorNo
@@ -138,7 +142,7 @@ PE_ALIGN
 ; If NULL then use PE_GetError to get further information
 ; Note: Calls PE_Analyze to process the PE file.
 ;------------------------------------------------------------------------------
-PE_OpenFile PROC USES EBX lpszPEFilename:DWORD
+PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
     LOCAL hPE:DWORD
     LOCAL hPEFile:DWORD
     LOCAL PEMemMapHandle:DWORD
@@ -151,45 +155,63 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD
         mov eax, NULL
         ret
     .ENDIF
-    
-    ;Invoke CreateFile, lpszPEFilename, GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ or FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL
-    Invoke CreateFile, lpszPEFilename, GENERIC_READ, FILE_SHARE_READ or FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL
+
+    ;--------------------------------------------------------------------------
+    ; Open file for read only or read/write access
+    ;--------------------------------------------------------------------------
+    .IF bReadOnly == TRUE
+        Invoke CreateFile, lpszPEFilename, GENERIC_READ, FILE_SHARE_READ or FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL
+    .ELSE
+        Invoke CreateFile, lpszPEFilename, GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ or FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL
+    .ENDIF
     .IF eax == INVALID_HANDLE_VALUE
         Invoke PE_SetError, PE_ERROR_OPEN_FILE
         mov eax, NULL
         ret
     .ENDIF
-    mov hPEFile, eax
-
+    mov hPEFile, eax ; store file handle
+    
+    ;--------------------------------------------------------------------------
+    ; Get file size and verify its not too low or too high in size
+    ;--------------------------------------------------------------------------
     Invoke GetFileSize, hPEFile, NULL
     .IF eax < 268d ; https://www.bigmessowires.com/2015/10/08/a-handmade-executable-file/
         Invoke CloseHandle, hPEFile
         Invoke PE_SetError, PE_ERROR_OPEN_SIZE_LOW
         mov eax, NULL
         ret
-    .ELSEIF eax > 1FFFFFFFh ; 536,870,911 536MB+
+    .ELSEIF eax > 1FFFFFFFh ; 536,870,911 536MB+ - rare to be this size or larger
         Invoke CloseHandle, hPEFile
         Invoke PE_SetError, PE_ERROR_OPEN_SIZE_HIGH
         mov eax, NULL
         ret    
     .ENDIF
-    mov PEFilesize, eax
+    mov PEFilesize, eax ; file size
 
-    ;---------------------------------------------------
-    ; File Mapping: Create file mapping for main .exe .dll
-    ;---------------------------------------------------
-    ;Invoke CreateFileMapping, hPEFile, NULL, PAGE_READWRITE, 0, 0, NULL ; Create memory mapped file
-    Invoke CreateFileMapping, hPEFile, NULL, PAGE_READONLY, 0, 0, NULL ; Create memory mapped file
+    ;--------------------------------------------------------------------------
+    ; Create file mapping of entire file
+    ;--------------------------------------------------------------------------
+    .IF bReadOnly == TRUE
+        Invoke CreateFileMapping, hPEFile, NULL, PAGE_READONLY, 0, 0, NULL ; Create memory mapped file
+    .ELSE
+        Invoke CreateFileMapping, hPEFile, NULL, PAGE_READWRITE, 0, 0, NULL ; Create memory mapped file
+    .ENDIF
     .IF eax == NULL
         Invoke CloseHandle, hPEFile
         Invoke PE_SetError, PE_ERROR_OPEN_MAP
         mov eax, NULL
         ret
     .ENDIF
-    mov PEMemMapHandle, eax
-
-    ;Invoke MapViewOfFileEx, PEMemMapHandle, FILE_MAP_ALL_ACCESS, 0, 0, 0, NULL
-    Invoke MapViewOfFileEx, PEMemMapHandle, FILE_MAP_READ, 0, 0, 0, NULL
+    mov PEMemMapHandle, eax ; store mapping handle
+    
+    ;--------------------------------------------------------------------------
+    ; Create view of file
+    ;--------------------------------------------------------------------------
+    .IF bReadOnly == TRUE
+        Invoke MapViewOfFileEx, PEMemMapHandle, FILE_MAP_READ, 0, 0, 0, NULL
+    .ELSE
+        Invoke MapViewOfFileEx, PEMemMapHandle, FILE_MAP_ALL_ACCESS, 0, 0, 0, NULL
+    .ENDIF    
     .IF eax == NULL
         Invoke CloseHandle, PEMemMapHandle
         Invoke CloseHandle, hPEFile
@@ -197,22 +219,34 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD
         mov eax, NULL
         ret
     .ENDIF
-    mov PEMemMapPtr, eax
+    mov PEMemMapPtr, eax ; store map view pointer
 
+    ;--------------------------------------------------------------------------
+    ; Check PE file signature - to make sure MZ and PE sigs are located
+    ;--------------------------------------------------------------------------
     Invoke PESignature, PEMemMapPtr
-    ;mov PEVersion, eax
-    .IF eax == PE_INVALID ; not a valid PE (exe, dll etc) file
+    .IF eax == PE_INVALID
+        ;----------------------------------------------------------------------
+        ; Invalid PE file, so close all handles and return error
+        ;----------------------------------------------------------------------
         Invoke UnmapViewOfFile, PEMemMapPtr
         Invoke CloseHandle, PEMemMapHandle
         Invoke CloseHandle, hPEFile
         Invoke PE_SetError, PE_ERROR_OPEN_INVALID
         mov eax, NULL
         ret
-
-    .ELSE ; SigReturn == PE_ARCH_32 || SigReturn == PE_ARCH_64
+    .ELSE ; eax == PE_ARCH_32 || eax == PE_ARCH_64
+        ;----------------------------------------------------------------------
+        ; PE file is valid. So we process PE file and get pointers and other 
+        ; information and store in a 'handle' (hPE) that we return. 
+        ; Handle is a pointer to a PEINFO struct that stores PE file info.
+        ;----------------------------------------------------------------------
         Invoke PE_Analyze, PEMemMapPtr
         mov hPE, eax
         .IF hPE == NULL
+            ;------------------------------------------------------------------
+            ; Error processing PE file, so close all handles and return error
+            ;------------------------------------------------------------------        
             Invoke UnmapViewOfFile, PEMemMapPtr
             Invoke CloseHandle, PEMemMapHandle
             Invoke CloseHandle, hPEFile
@@ -220,31 +254,30 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD
             mov eax, NULL
             ret
         .ENDIF
-        
-        mov ebx, hPE
-        mov eax, PEMemMapHandle
-        mov [ebx].PEINFO.PEMemMapHandle, eax
-        mov eax, hPEFile
-        mov [ebx].PEINFO.PEFileHandle, eax
-        mov eax, PEFilesize
-        mov [ebx].PEINFO.PEFilesize, eax
-        .IF lpszPEFilename != NULL
-            lea eax, [ebx].PEINFO.PEFilename
-            Invoke lstrcpyn, eax, lpszPEFilename, MAX_PATH
-        .ENDIF        
-        
     .ENDIF
     
+    ;--------------------------------------------------------------------------
+    ; Success in processing PE file. Store additional information like file and
+    ; map handles and filesize in our PEINFO struct (hPE) if we reach here.
+    ;--------------------------------------------------------------------------
+    mov ebx, hPE
+    mov eax, bReadOnly
+    mov [ebx].PEINFO.PEOpenMode, eax        
+    mov eax, PEMemMapHandle
+    mov [ebx].PEINFO.PEMemMapHandle, eax
+    mov eax, hPEFile
+    mov [ebx].PEINFO.PEFileHandle, eax
+    mov eax, PEFilesize
+    mov [ebx].PEINFO.PEFilesize, eax
+    .IF lpszPEFilename != NULL
+        lea eax, [ebx].PEINFO.PEFilename
+        Invoke lstrcpyn, eax, lpszPEFilename, MAX_PATH
+    .ENDIF        
     Invoke PE_SetError, PE_ERROR_SUCCESS
-    
-    ; save version for later use
-    ;mov ebx, hPE
-    ;mov eax, PEVersion
-    ;mov [ebx].PEINFO.PEVersion, eax
-    mov eax, hPE
+
+    mov eax, hPE ; Return handle for our user to store and use in other functions
     ret
 PE_OpenFile ENDP
-
 
 PE_ALIGN
 ;------------------------------------------------------------------------------
@@ -282,7 +315,6 @@ PE_CloseFile PROC USES EBX hPE:DWORD
     xor eax, eax
     ret
 PE_CloseFile ENDP
-
 
 PE_ALIGN
 ;------------------------------------------------------------------------------
@@ -593,6 +625,9 @@ PE_Finish PROC USES EBX hPE:DWORD
     ret
 PE_Finish ENDP
 
+
+
+
 ;############################################################################
 ;  H E A D E R   F U N C T I O N S
 ;############################################################################
@@ -695,6 +730,7 @@ PE_DirectoryImportTable PROC USES EBX hPE:DWORD
     .ENDIF
     ret
 PE_DirectoryImportTable ENDP
+
 
 
 
@@ -953,6 +989,152 @@ PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     ret
 PE_SectionHeaderByType ENDP
 
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionHeaderByAddr - returns pointer to section that has dwAddress
+;----------------------------------------------------------------------------
+PE_SectionHeaderByAddr PROC USES EBX hPE:DWORD, dwAddress:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    ret
+PE_SectionHeaderByAddr ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+;
+;----------------------------------------------------------------------------
+PE_SectionAdd PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:DWORD, dwSectionCharacteristics:DWORD
+    LOCAL dwNewFileSize:DWORD
+    
+    .IF hPE == NULL || dwSectionSize == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEFilesize
+    add eax, dwSectionSize
+    add eax, SIZEOF IMAGE_SECTION_HEADER
+    mov dwNewFileSize, eax
+    Invoke PEIncreaseFileSize, hPE, dwNewFileSize
+    .IF eax == TRUE
+        ; increment section count in PEINFO and in PE file
+        ; adjust offsets and stuff in section header
+        ; move everything after section table + SIZEOF IMAGE_SECTION_HEADER
+    .ELSE
+        Invoke PE_SetError, PE_ERROR_SECTION_ADD
+        xor eax, eax
+        ret
+    .ENDIF
+
+    mov eax, TRUE
+    ret
+PE_SectionAdd ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionDelete - Delete an existing section (by name or index)
+;----------------------------------------------------------------------------
+PE_SectionDelete PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:DWORD
+    LOCAL dwNewFileSize:DWORD
+    LOCAL dwSectionSize:DWORD
+    LOCAL nSection:DWORD
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    .IF lpszSectionName != NULL ; section name to index 
+        ; find section name
+    .ELSE ; already have index
+        mov eax, dwSectionIndex
+    .ENDIF
+    mov nSection, eax
+    
+    ; get existing section size
+    ; 
+    mov dwSectionSize, eax
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEFilesize
+    sub eax, dwSectionSize
+    sub eax, SIZEOF IMAGE_SECTION_HEADER
+    mov dwNewFileSize, eax    
+    
+    ; Move data down by - SIZEOF IMAGE_SECTION_HEADER
+    ; adjust any stuff that needs adjusting
+    
+    Invoke PEDecreaseFileSize, hPE, dwNewFileSize
+    .IF eax == TRUE
+        ; Decrement section count in PEINFO and in PE file
+        ; adjust offsets and stuff in section header
+    .ELSE
+        Invoke PE_SetError, PE_ERROR_SECTION_DEL
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    mov eax, TRUE
+    ret
+PE_SectionDelete ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; Insert section - Add and insert a new section
+;----------------------------------------------------------------------------
+PE_SectionInsert PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:DWORD, dwSectionCharacteristics:DWORD, dwSectionIndex:DWORD
+    LOCAL dwNewFileSize:DWORD
+    
+    .IF hPE == NULL || dwSectionSize == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    ; Call PE_SectionAdd then PE_SectionMove?
+    
+    mov eax, TRUE
+    ret
+PE_SectionInsert ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionMove - Move section (by name or index) to section (by name or index)
+;----------------------------------------------------------------------------
+PE_SectionMove PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:DWORD, lpszSectionNameToMoveTo:DWORD, dwSectionIndexToMoveTo:DWORD
+    LOCAL nSectionFrom:DWORD
+    LOCAL nSectionTo:DWORD
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    .IF lpszSectionName != NULL
+        
+    .ELSE
+        mov eax, dwSectionIndex
+    .ENDIF
+    mov nSectionFrom, eax
+    
+    .IF lpszSectionNameToMoveTo != NULL
+        
+    .ELSE
+        mov eax, dwSectionIndexToMoveTo
+    .ENDIF
+    mov nSectionTo, eax    
+    
+    ; check section indexes are within section count and are not same
+    
+    ; calc blocks of memory to copy/move
+     
+
+    
+    mov eax, TRUE
+    ret
+PE_SectionMove ENDP
+
 
 
 ;############################################################################
@@ -1080,6 +1262,7 @@ PE_Is64 ENDP
 
 
 
+
 ;############################################################################
 ;  E R R O R   F U N C T I O N S
 ;############################################################################
@@ -1106,6 +1289,7 @@ PE_GetError ENDP
 
 
 
+
 ;############################################################################
 ;  I N T E R N A L   F U N C T I O N S
 ;############################################################################
@@ -1114,8 +1298,8 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 ; Checks the PE signatures to determine if they are valid
 ;----------------------------------------------------------------------------
-PESignature PROC USES EBX pPE:DWORD
-    mov ebx, pPE
+PESignature PROC USES EBX pPEInMemory:DWORD
+    mov ebx, pPEInMemory
     movzx eax, word ptr [ebx].IMAGE_DOS_HEADER.e_magic
     .IF ax == MZ_SIGNATURE
         add ebx, [ebx].IMAGE_DOS_HEADER.e_lfanew
@@ -1137,6 +1321,194 @@ PESignature PROC USES EBX pPE:DWORD
     ret
 PESignature ENDP
 
+PE_ALIGN
+;----------------------------------------------------------------------------
+; Increase (resize) PE file. Adjustments to pointers and other data to be handled by 
+; other functions.
+; Returns: TRUE on success or FALSE otherwise. 
+;----------------------------------------------------------------------------
+PEIncreaseFileSize PROC USES EBX hPE:DWORD, dwNewSize:DWORD
+    LOCAL bReadOnly:DWORD
+    LOCAL PEFilesize:DWORD
+    LOCAL hPEFile:DWORD
+    LOCAL PEMemMapHandle:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL PENewFileSize:DWORD
+    LOCAL PENewMemMapHandle:DWORD
+    LOCAL PENewMemMapPtr:DWORD    
+    
+    .IF hPE == NULL || dwNewSize == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    ;---------------------------------------------------
+    ; Get existing file, map and view handles
+    ;---------------------------------------------------
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEFilesize
+    .IF dwNewSize <= eax ; if size is less than existing file's size
+        xor eax, eax
+        ret
+    .ENDIF
+    mov PEFilesize, eax
+    mov eax, [ebx].PEINFO.PEOpenMode
+    mov bReadOnly, eax
+    mov eax, [ebx].PEINFO.PEFileHandle
+    mov hPEFile, eax
+    mov eax, [ebx].PEINFO.PEMemMapHandle
+    mov PEMemMapHandle, eax
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    
+    ;---------------------------------------------------
+    ; Create file mapping of new size
+    ;---------------------------------------------------
+    mov eax, dwNewSize
+    mov PENewFileSize, eax
+    .IF bReadOnly == TRUE
+        Invoke CreateFileMapping, hPEFile, NULL, PAGE_READONLY, 0, dwNewSize, NULL ; Create memory mapped file
+    .ELSE
+        Invoke CreateFileMapping, hPEFile, NULL, PAGE_READWRITE, 0, dwNewSize, NULL ; Create memory mapped file
+    .ENDIF
+    .IF eax == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov PENewMemMapHandle, eax
+    
+    ;---------------------------------------------------
+    ; Map the view
+    ;---------------------------------------------------
+    .IF bReadOnly == TRUE
+        Invoke MapViewOfFileEx, PENewMemMapHandle, FILE_MAP_READ, 0, 0, 0, NULL
+    .ELSE
+        Invoke MapViewOfFileEx, PENewMemMapHandle, FILE_MAP_ALL_ACCESS, 0, 0, 0, NULL
+    .ENDIF    
+    .IF eax == NULL
+        Invoke CloseHandle, PENewMemMapHandle
+        xor eax, eax
+        ret
+    .ENDIF
+    mov PENewMemMapPtr, eax
+
+    ;---------------------------------------------------
+    ; Close existing mapping and only use new one now
+    ;---------------------------------------------------
+    Invoke UnmapViewOfFile, PEMemMapPtr
+    Invoke CloseHandle, PEMemMapHandle
+    
+    ;---------------------------------------------------
+    ; Update handles and information
+    ;---------------------------------------------------
+    mov ebx, hPE
+    mov eax, PENewMemMapPtr
+    mov [ebx].PEINFO.PEMemMapPtr, eax    
+    mov eax, PENewMemMapHandle
+    mov [ebx].PEINFO.PEMemMapHandle, eax
+    mov eax, PENewFileSize
+    mov [ebx].PEINFO.PEFilesize, eax
+
+    mov eax, TRUE
+    ret
+PEIncreaseFileSize ENDP
+
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; Decrease (resize) PE file. Adjustments to pointers and other data to be handled by 
+; other functions. Move data before calling this.
+; Returns: TRUE on success or FALSE otherwise. 
+;----------------------------------------------------------------------------
+PEDecreaseFileSize PROC USES EBX hPE:DWORD, dwNewSize:DWORD
+    LOCAL bReadOnly:DWORD
+    LOCAL PEFilesize:DWORD
+    LOCAL hPEFile:DWORD
+    LOCAL PEMemMapHandle:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL PENewFileSize:DWORD
+    LOCAL PENewMemMapHandle:DWORD
+    LOCAL PENewMemMapPtr:DWORD    
+    
+    .IF hPE == NULL || dwNewSize == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    ;---------------------------------------------------
+    ; Get existing file, map and view handles
+    ;---------------------------------------------------
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEFilesize
+    .IF dwNewSize > eax ; if size is greater than existing file's size
+        xor eax, eax
+        ret
+    .ENDIF
+    mov PEFilesize, eax
+    mov eax, [ebx].PEINFO.PEOpenMode
+    mov bReadOnly, eax
+    mov eax, [ebx].PEINFO.PEFileHandle
+    mov hPEFile, eax
+    mov eax, [ebx].PEINFO.PEMemMapHandle
+    mov PEMemMapHandle, eax
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax    
+    
+    ;---------------------------------------------------
+    ; Close existing mapping 
+    ;---------------------------------------------------
+    Invoke UnmapViewOfFile, PEMemMapPtr
+    Invoke CloseHandle, PEMemMapHandle
+    
+    Invoke SetFilePointer, hPEFile, dwNewSize, 0, FILE_BEGIN
+    Invoke SetEndOfFile, hPEFile
+    Invoke FlushFileBuffers, hPEFile
+    
+    ;---------------------------------------------------
+    ; Create file mapping of new size
+    ;---------------------------------------------------
+    mov eax, dwNewSize
+    mov PENewFileSize, eax
+    .IF bReadOnly == TRUE
+        Invoke CreateFileMapping, hPEFile, NULL, PAGE_READONLY, 0, 0, NULL ; Create memory mapped file
+    .ELSE
+        Invoke CreateFileMapping, hPEFile, NULL, PAGE_READWRITE, 0, 0, NULL ; Create memory mapped file
+    .ENDIF
+    .IF eax == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov PENewMemMapHandle, eax
+    
+    ;---------------------------------------------------
+    ; Map the view
+    ;---------------------------------------------------
+    .IF bReadOnly == TRUE
+        Invoke MapViewOfFileEx, PENewMemMapHandle, FILE_MAP_READ, 0, 0, 0, NULL
+    .ELSE
+        Invoke MapViewOfFileEx, PENewMemMapHandle, FILE_MAP_ALL_ACCESS, 0, 0, 0, NULL
+    .ENDIF    
+    .IF eax == NULL
+        Invoke CloseHandle, PENewMemMapHandle
+        xor eax, eax
+        ret
+    .ENDIF
+    mov PENewMemMapPtr, eax    
+    
+    ;---------------------------------------------------
+    ; Update handles and information
+    ;---------------------------------------------------
+    mov ebx, hPE
+    mov eax, PENewMemMapPtr
+    mov [ebx].PEINFO.PEMemMapPtr, eax    
+    mov eax, PENewMemMapHandle
+    mov [ebx].PEINFO.PEMemMapHandle, eax
+    mov eax, PENewFileSize
+    mov [ebx].PEINFO.PEFilesize, eax
+    
+    mov eax, TRUE
+    ret
+PEDecreaseFileSize ENDP
 
 
 END

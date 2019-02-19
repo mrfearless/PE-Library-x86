@@ -4,7 +4,7 @@
 ; Paste this text at the end of \Radasm\masm\masmApiCall.api to add these to Radasm
 ;
 ;------------------------------------------------------------------------------------------------
-PE_OpenFile,lpszPEFilename
+PE_OpenFile,lpszPEFilename,bReadOnly
 PE_CloseFile,hPE
 PE_Analyze,pPEInMemory
 PE_Finish,hPE
@@ -23,6 +23,13 @@ PE_SectionsHeaders,hPE
 PE_SectionHeaderByIndex,hPE,dwSectionIndex
 PE_SectionHeaderByName,hPE,lpszSectionName
 PE_SectionHeaderByType,hPE,dwSectionType
+PE_SectionHeaderByAddr,hPE,dwAddress
+
+PE_SectionAdd,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics
+PE_SectionDelete,hPE,lpszSectionName,dwSectionIndex
+PE_SectionInsert,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics,dwSectionIndex
+PE_SectionMove,hPE,lpszSectionName,dwSectionIndex,lpszSectionNameToMoveTo,dwSectionIndexToMoveTo
+
 ; Common Info Functions:
 PE_Machine,hPE
 PE_Characteristics,hPE
