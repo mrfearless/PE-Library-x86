@@ -44,14 +44,14 @@
 option casemap:none
 include \masm32\macros\macros.asm
 
-DEBUG32 EQU 1
-IFDEF DEBUG32
-    PRESERVEXMMREGS equ 1
-    includelib M:\Masm32\lib\Debug32.lib
-    DBG32LIB equ 1
-    DEBUGEXE textequ <'M:\Masm32\DbgWin.exe'>
-    include M:\Masm32\include\debug32.inc
-ENDIF
+;DEBUG32 EQU 1
+;IFDEF DEBUG32
+;    PRESERVEXMMREGS equ 1
+;    includelib M:\Masm32\lib\Debug32.lib
+;    DBG32LIB equ 1
+;    DEBUGEXE textequ <'M:\Masm32\DbgWin.exe'>
+;    include M:\Masm32\include\debug32.inc
+;ENDIF
 
 include windows.inc
 
@@ -72,7 +72,7 @@ PEJustFname             PROTO :DWORD, :DWORD
 PEIncreaseFileSize      PROTO :DWORD, :DWORD
 PEDecreaseFileSize      PROTO :DWORD, :DWORD
 
-PE_SetError             PROTO :DWORD
+PE_SetError             PROTO :DWORD, :DWORD
 
 PUBLIC PELIB_ErrorNo
 
@@ -83,6 +83,7 @@ PUBLIC PELIB_ErrorNo
 IFNDEF PEINFO
 PEINFO                      STRUCT
     PEOpenMode              DD 0
+    PEHandle                DD 0
     PEFilename              DB MAX_PATH DUP (0)
     PEFilesize              DD 0
     PEVersion               DD 0
@@ -131,18 +132,19 @@ ENDIF
 
 
 .DATA
-PELIB_ErrorNo           DD 0 ; Global to store error no
+PELIB_ErrorNo               DD PE_ERROR_NO_HANDLE ; Global to store error no
 
 
 .CODE
 PE_ALIGN
 ;------------------------------------------------------------------------------
 ; PE_OpenFile - Opens a PE file (exe/dll/ocx/cpl etc)
-; Returns: in eax hPE on success or NULL otherwise. 
-; If NULL then use PE_GetError to get further information
-; Note: Calls PE_Analyze to process the PE file.
+; Returns: TRUE or FALSE. If TRUE a PE handle (hPE) is stored in the variable
+; pointed to by lpdwPEHandle. If FALSE, use PE_GetError to get further info.
+;
+; Note: Calls PE_Analyze to process the PE file. Use PE_CloseFile when finished
 ;------------------------------------------------------------------------------
-PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
+PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD, lpdwPEHandle:DWORD
     LOCAL hPE:DWORD
     LOCAL hPEFile:DWORD
     LOCAL PEMemMapHandle:DWORD
@@ -150,9 +152,22 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
     LOCAL PEFilesize:DWORD
     LOCAL PEVersion:DWORD
     
+    IFDEF DEBUG32
+    PrintText 'PE_OpenFile'
+    ENDIF
+    
+    .IF lpdwPEHandle == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF
+    
     .IF lpszPEFilename == NULL
-        Invoke PE_SetError, PE_ERROR_OPEN_FILE
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_FILE
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
 
@@ -165,8 +180,11 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
         Invoke CreateFile, lpszPEFilename, GENERIC_READ or GENERIC_WRITE, FILE_SHARE_READ or FILE_SHARE_WRITE, NULL, OPEN_EXISTING, 0, NULL
     .ENDIF
     .IF eax == INVALID_HANDLE_VALUE
-        Invoke PE_SetError, PE_ERROR_OPEN_FILE
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_FILE
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
     mov hPEFile, eax ; store file handle
@@ -177,13 +195,19 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
     Invoke GetFileSize, hPEFile, NULL
     .IF eax < 268d ; https://www.bigmessowires.com/2015/10/08/a-handmade-executable-file/
         Invoke CloseHandle, hPEFile
-        Invoke PE_SetError, PE_ERROR_OPEN_SIZE_LOW
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_SIZE_LOW
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ELSEIF eax > 1FFFFFFFh ; 536,870,911 536MB+ - rare to be this size or larger
         Invoke CloseHandle, hPEFile
-        Invoke PE_SetError, PE_ERROR_OPEN_SIZE_HIGH
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_SIZE_HIGH
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret    
     .ENDIF
     mov PEFilesize, eax ; file size
@@ -198,8 +222,11 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
     .ENDIF
     .IF eax == NULL
         Invoke CloseHandle, hPEFile
-        Invoke PE_SetError, PE_ERROR_OPEN_MAP
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_MAP
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
     mov PEMemMapHandle, eax ; store mapping handle
@@ -215,8 +242,11 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
     .IF eax == NULL
         Invoke CloseHandle, PEMemMapHandle
         Invoke CloseHandle, hPEFile
-        Invoke PE_SetError, PE_ERROR_OPEN_VIEW
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_VIEW
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
     mov PEMemMapPtr, eax ; store map view pointer
@@ -232,8 +262,11 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
         Invoke UnmapViewOfFile, PEMemMapPtr
         Invoke CloseHandle, PEMemMapHandle
         Invoke CloseHandle, hPEFile
-        Invoke PE_SetError, PE_ERROR_OPEN_INVALID
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_INVALID
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ELSE ; eax == PE_ARCH_32 || eax == PE_ARCH_64
         ;----------------------------------------------------------------------
@@ -241,17 +274,15 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
         ; information and store in a 'handle' (hPE) that we return. 
         ; Handle is a pointer to a PEINFO struct that stores PE file info.
         ;----------------------------------------------------------------------
-        Invoke PE_Analyze, PEMemMapPtr
-        mov hPE, eax
-        .IF hPE == NULL
+        Invoke PE_Analyze, PEMemMapPtr, lpdwPEHandle
+        .IF eax == FALSE
             ;------------------------------------------------------------------
             ; Error processing PE file, so close all handles and return error
             ;------------------------------------------------------------------        
             Invoke UnmapViewOfFile, PEMemMapPtr
             Invoke CloseHandle, PEMemMapHandle
             Invoke CloseHandle, hPEFile
-            Invoke PE_SetError, PE_ERROR_OPEN_INVALID
-            mov eax, NULL
+            xor eax, eax
             ret
         .ENDIF
     .ENDIF
@@ -260,7 +291,24 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
     ; Success in processing PE file. Store additional information like file and
     ; map handles and filesize in our PEINFO struct (hPE) if we reach here.
     ;--------------------------------------------------------------------------
+    .IF lpdwPEHandle == NULL
+        Invoke UnmapViewOfFile, PEMemMapPtr
+        Invoke CloseHandle, PEMemMapHandle
+        Invoke CloseHandle, hPEFile
+        Invoke PE_SetError, NULL, PE_ERROR_OPEN_INVALID    
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
+        ret
+    .ENDIF       
+    
+    mov ebx, lpdwPEHandle
+    mov eax, [ebx]
+    mov hPE, eax
     mov ebx, hPE
+    mov eax, lpdwPEHandle
+    mov [ebx].PEINFO.PEHandle, eax
     mov eax, bReadOnly
     mov [ebx].PEINFO.PEOpenMode, eax        
     mov eax, PEMemMapHandle
@@ -273,20 +321,38 @@ PE_OpenFile PROC USES EBX lpszPEFilename:DWORD, bReadOnly:DWORD
         lea eax, [ebx].PEINFO.PEFilename
         Invoke lstrcpyn, eax, lpszPEFilename, MAX_PATH
     .ENDIF        
-    Invoke PE_SetError, PE_ERROR_SUCCESS
-
-    mov eax, hPE ; Return handle for our user to store and use in other functions
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    mov ebx, lpdwPEHandle
+    mov eax, hPE
+    mov [ebx], eax
+    
+    ;mov eax, hPE ; Return handle for our user to store and use in other functions
+    mov eax, TRUE
     ret
 PE_OpenFile ENDP
 
 PE_ALIGN
 ;------------------------------------------------------------------------------
 ; PE_CloseFile - Close PE File
+; Returns: None
 ;------------------------------------------------------------------------------
 PE_CloseFile PROC USES EBX hPE:DWORD
+
+    IFDEF DEBUG32
+    PrintText 'PE_CloseFile'
+    ENDIF
+    
     .IF hPE == NULL
         xor eax, eax
         ret
+    .ENDIF
+
+    mov ebx, hPE
+    mov ebx, [ebx].PEINFO.PEHandle
+    .IF ebx != 0
+        mov eax, 0 ; null out hPE handle if it exists
+        mov [ebx], eax
     .ENDIF
 
     mov ebx, hPE
@@ -311,7 +377,9 @@ PE_CloseFile PROC USES EBX hPE:DWORD
     .IF eax != NULL
         Invoke GlobalFree, eax
     .ENDIF
-
+    
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
     xor eax, eax
     ret
 PE_CloseFile ENDP
@@ -319,14 +387,15 @@ PE_CloseFile ENDP
 PE_ALIGN
 ;------------------------------------------------------------------------------
 ; PE_Analyze - Process memory mapped PE file 
-; Returns: in eax hPE on success or NULL otherwise. 
-; If NULL then use PE_GetError to get further information
-; Can be used directly on memory region where PE is already loaded/mapped, if
-; using directly then no need to 
+; Returns: TRUE or FALSE. If TRUE a PE handle (hPE) is stored in the variable
+; pointed to by lpdwPEHandle. If FALSE, use PE_GetError to get further info.
+;
+; Can be used directly on memory region where PE is already loaded/mapped
+;
 ; PE_Analyze is also called by PE_OpenFile.
-; Use PE_Finish when finished with PE file if using PE_Analyze directly.
+; Note: Use PE_Finish when finished with PE file if using PE_Analyze directly.
 ;------------------------------------------------------------------------------
-PE_Analyze PROC USES EBX pPEInMemory:DWORD
+PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
     LOCAL hPE:DWORD
     LOCAL PEMemMapPtr:DWORD
     LOCAL pNTHeader:DWORD
@@ -348,9 +417,22 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD
     LOCAL dwCurrentSection:DWORD
     LOCAL bPE64:DWORD
     
+    IFDEF DEBUG32
+    PrintText 'PE_Analyze'
+    ENDIF    
+    
+    .IF lpdwPEHandle == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF    
+    
     .IF pPEInMemory == NULL
-        Invoke PE_SetError, PE_ERROR_ANALYZE_NULL
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_ANALYZE_NULL
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
     
@@ -362,8 +444,11 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD
     ;--------------------------------------------------------------------------
     Invoke GlobalAlloc, GMEM_FIXED or GMEM_ZEROINIT, SIZEOF PEINFO
     .IF eax == NULL
-        Invoke PE_SetError, PE_ERROR_ANALYZE_ALLOC
-        mov eax, NULL
+        Invoke PE_SetError, NULL, PE_ERROR_ANALYZE_ALLOC
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
     mov hPE, eax
@@ -423,8 +508,14 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD
                 mov [ebx].PEINFO.PE64, TRUE
                 mov bPE64, TRUE
             .ELSE ; ROM or something else
-                Invoke PE_SetError, PE_ERROR_ANALYZE_INVALID
-                mov eax, NULL
+                Invoke PE_SetError, hPE, PE_ERROR_ANALYZE_INVALID
+                .IF hPE != NULL
+                    Invoke GlobalFree, hPE
+                .ENDIF
+                mov ebx, lpdwPEHandle
+                mov eax, 0
+                mov [ebx], eax
+                xor eax, eax
                 ret
             .ENDIF
             
@@ -530,8 +621,14 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD
         .ENDW
         
     .ELSE
-        Invoke PE_SetError, PE_ERROR_ANALYZE_INVALID
-        mov eax, NULL
+        Invoke PE_SetError, hPE, PE_ERROR_ANALYZE_INVALID
+        .IF hPE != NULL
+            Invoke GlobalFree, hPE
+        .ENDIF
+        mov ebx, lpdwPEHandle
+        mov eax, 0
+        mov [ebx], eax
+        xor eax, eax
         ret
     .ENDIF
     
@@ -561,6 +658,8 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD
     ; Updated PEINFO with information
     ;--------------------------------------------------------------------------
     mov ebx, hPE
+    mov eax, lpdwPEHandle
+    mov [ebx].PEINFO.PEHandle, eax
     ; Header pointers
     mov eax, pNTHeader
     mov [ebx].PEINFO.PENTHeader, eax
@@ -603,7 +702,12 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD
     mov eax, dwDllCharacteristics
     mov [ebx].PEINFO.PEDllCharacteristics, eax
 
+    mov ebx, lpdwPEHandle
     mov eax, hPE
+    mov [ebx], eax
+
+    ;mov eax, hPE
+    mov eax, TRUE
     ret
 PE_Analyze ENDP
 
@@ -612,16 +716,33 @@ PE_ALIGN
 ; PE_Finish - Frees up hPE if PE was processed from memory directly with a call
 ; to PE_Analyze. If PE was opened as a file via PE_OpenFile, then PE_CloseFile 
 ; should be used instead of this function.
+; Returns: None
 ;------------------------------------------------------------------------------
 PE_Finish PROC USES EBX hPE:DWORD
+
+    IFDEF DEBUG32
+    PrintText 'PE_Finish'
+    ENDIF
+    
     .IF hPE == NULL
         xor eax, eax
         ret
     .ENDIF
+    
+    mov ebx, hPE
+    mov ebx, [ebx].PEINFO.PEHandle
+    .IF ebx != 0
+        mov eax, 0 ; null out hPE handle if it exists
+        mov [ebx], eax
+    .ENDIF
+        
     mov eax, hPE
     .IF eax != NULL
         Invoke GlobalFree, eax
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    xor eax, eax
     ret
 PE_Finish ENDP
 
@@ -638,9 +759,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderDOS PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEDOSHeader
     ; eax points to IMAGE_DOS_HEADER
@@ -653,9 +776,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderNT PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PENTHeader
     ; eax points to IMAGE_NT_HEADERS
@@ -668,9 +793,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderFile PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEFileHeader
     ; eax points to IMAGE_FILE_HEADER
@@ -683,9 +810,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderOptional PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEOptionalHeader
     ; eax points to IMAGE_OPTIONAL_HEADER (32/64)
@@ -698,11 +827,13 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderSections PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
-    mov eax, [eax].PEINFO.PESectionTable
+    mov eax, [ebx].PEINFO.PESectionTable
     ; eax points to array of IMAGE_SECTION_HEADER entries
     ret
 PE_HeaderSections ENDP
@@ -713,9 +844,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_DirectoryExportTable PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     ret
 PE_DirectoryExportTable ENDP
 
@@ -725,9 +858,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_DirectoryImportTable PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     ret
 PE_DirectoryImportTable ENDP
 
@@ -744,11 +879,13 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_SectionsHeaders PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
-    mov eax, [eax].PEINFO.PESectionTable
+    mov eax, [ebx].PEINFO.PESectionTable
     ; eax points to array of IMAGE_SECTION_HEADER entries
     ret
 PE_SectionsHeaders ENDP
@@ -759,9 +896,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_SectionHeaderCount PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PESectionCount
     ret
@@ -769,11 +908,18 @@ PE_SectionHeaderCount ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_SectionHeaderByIndex - returns pointer to section specified by Index
+; PE_SectionHeaderByIndex - Get section specified by dwSectionIndex
+; Returns: pointer to section or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByIndex PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
     LOCAL pHeaderSections:DWORD
-     
+    
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF    
+    
     .IF dwSectionIndex > 96d ; max sections allowed as per MS COFF docs
         xor eax, eax
         ret
@@ -790,7 +936,9 @@ PE_SectionHeaderByIndex PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
         ret
     .ENDIF
     mov pHeaderSections, eax
-
+    
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
     mov eax, dwSectionIndex
     mov ebx, SIZEOF IMAGE_SECTION_HEADER
     mul ebx
@@ -801,13 +949,20 @@ PE_SectionHeaderByIndex ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_SectionHeaderByName - returns pointer to section specified by Name
+; PE_SectionHeaderByName - Get section specified by lpszSectionName
+; Returns: pointer to section or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
     LOCAL pHeaderSections:DWORD
     LOCAL pCurrentSection:DWORD
     LOCAL nSections:DWORD
     LOCAL nSection:DWORD
+    
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF
     
     .IF lpszSectionName == NULL
         xor eax, eax
@@ -830,6 +985,7 @@ PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
             lea ebx, [ebx].IMAGE_SECTION_HEADER.Name1
             Invoke lstrcmp, ebx, lpszSectionName
             .IF eax == 0 ; match
+                Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
                 mov eax, pCurrentSection
                 ret
             .ENDIF
@@ -839,6 +995,7 @@ PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
         inc nSection
         mov eax, nSection
     .ENDW
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     
     xor eax, eax
     ret
@@ -846,13 +1003,20 @@ PE_SectionHeaderByName ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_SectionHeaderByType - returns pointer to section specified by Type
+; PE_SectionHeaderByType - Get section specified by dwSectionType
+; Returns: pointer to section or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     LOCAL pHeaderSections:DWORD
     LOCAL pCurrentSection:DWORD
     LOCAL nSections:DWORD
     LOCAL nSection:DWORD
+    
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF    
     
     .IF dwSectionType > SEC_LAST
         xor eax, eax
@@ -865,6 +1029,8 @@ PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     .ENDIF
     mov pHeaderSections, eax
     mov pCurrentSection, eax
+
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
 
     Invoke PE_SectionHeaderCount, hPE
     mov ebx, pCurrentSection
@@ -984,34 +1150,52 @@ PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
         inc nSection
         mov eax, nSection
     .ENDW
-    
+
     xor eax, eax
     ret
 PE_SectionHeaderByType ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_SectionHeaderByAddr - returns pointer to section that has dwAddress
+; PE_SectionHeaderByAddr - Get section that has dwAddress
+; Returns: pointer to section or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByAddr PROC USES EBX hPE:DWORD, dwAddress:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    xor eax, eax
     ret
 PE_SectionHeaderByAddr ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
+; PE_SectionAdd - Add a new section header to end of section table and a new
+; section of specified size and characteristics to end of PE file.
+; Returns: TRUE if successful or FALSE otherwise.
 ;
+; Note: If function fails and error is PE_ERROR_SECTION_ADD, then this is a
+; fatal error in which the PE file will be closed and the hPE handle will
+; be set to NULL. 
 ;----------------------------------------------------------------------------
 PE_SectionAdd PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:DWORD, dwSectionCharacteristics:DWORD
     LOCAL dwNewFileSize:DWORD
     
-    .IF hPE == NULL || dwSectionSize == 0
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    
+    .IF dwSectionSize == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEFilesize
     add eax, dwSectionSize
@@ -1023,11 +1207,12 @@ PE_SectionAdd PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:DWOR
         ; adjust offsets and stuff in section header
         ; move everything after section table + SIZEOF IMAGE_SECTION_HEADER
     .ELSE
-        Invoke PE_SetError, PE_ERROR_SECTION_ADD
+        Invoke PE_SetError, hPE, PE_ERROR_SECTION_ADD
         xor eax, eax
         ret
     .ENDIF
-
+    
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov eax, TRUE
     ret
 PE_SectionAdd ENDP
@@ -1035,6 +1220,11 @@ PE_SectionAdd ENDP
 PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_SectionDelete - Delete an existing section (by name or index)
+; Returns: TRUE if successful or FALSE otherwise.
+;
+; Note: If function fails and error is PE_ERROR_SECTION_DEL, then this is a
+; fatal error in which the PE file will be closed and the hPE handle will
+; be set to NULL. 
 ;----------------------------------------------------------------------------
 PE_SectionDelete PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:DWORD
     LOCAL dwNewFileSize:DWORD
@@ -1042,6 +1232,7 @@ PE_SectionDelete PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:
     LOCAL nSection:DWORD
     
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1071,10 +1262,12 @@ PE_SectionDelete PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:
         ; Decrement section count in PEINFO and in PE file
         ; adjust offsets and stuff in section header
     .ELSE
-        Invoke PE_SetError, PE_ERROR_SECTION_DEL
+        Invoke PE_SetError, hPE, PE_ERROR_SECTION_DEL
         xor eax, eax
         ret
     .ENDIF
+    
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     
     mov eax, TRUE
     ret
@@ -1082,17 +1275,29 @@ PE_SectionDelete ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; Insert section - Add and insert a new section
+; PE_SectionInsert - Add and insert a new section.
+; Returns: TRUE if successful or FALSE otherwise.
+;
+; Note: If function fails and error is PE_ERROR_SECTION_INS, then this is a
+; fatal error in which the PE file will be closed and the hPE handle will
+; be set to NULL. 
 ;----------------------------------------------------------------------------
 PE_SectionInsert PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:DWORD, dwSectionCharacteristics:DWORD, dwSectionIndex:DWORD
     LOCAL dwNewFileSize:DWORD
     
-    .IF hPE == NULL || dwSectionSize == 0
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    .IF dwSectionSize == 0
         xor eax, eax
         ret
     .ENDIF
     
     ; Call PE_SectionAdd then PE_SectionMove?
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     
     mov eax, TRUE
     ret
@@ -1101,12 +1306,18 @@ PE_SectionInsert ENDP
 PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_SectionMove - Move section (by name or index) to section (by name or index)
+; Returns: TRUE if successful or FALSE otherwise.
+;
+; Note: If function fails and error is PE_ERROR_SECTION_MOVE, then this is a
+; fatal error in which the PE file will be closed and the hPE handle will
+; be set to NULL. 
 ;----------------------------------------------------------------------------
 PE_SectionMove PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:DWORD, lpszSectionNameToMoveTo:DWORD, dwSectionIndexToMoveTo:DWORD
     LOCAL nSectionFrom:DWORD
     LOCAL nSectionTo:DWORD
     
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1129,7 +1340,7 @@ PE_SectionMove PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:DW
     
     ; calc blocks of memory to copy/move
      
-
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     
     mov eax, TRUE
     ret
@@ -1147,9 +1358,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Machine PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEMachine
     ret
@@ -1161,9 +1374,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Characteristics PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PECharacteristics
     ret
@@ -1175,9 +1390,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_AddressOfEntryPoint PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEAddressOfEntryPoint
     ret
@@ -1189,9 +1406,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_ImageBase PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PE64
     .IF eax == TRUE
@@ -1210,9 +1429,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Subsystem PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PESubsystem
     ret
@@ -1224,9 +1445,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_DllCharacteristics PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEDllCharacteristics
     ret
@@ -1238,9 +1461,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_IsDll PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEDLL
     ret
@@ -1252,9 +1477,11 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Is64 PROC USES EBX hPE:DWORD
     .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PE64
     ret
@@ -1271,10 +1498,17 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_SetError
 ;----------------------------------------------------------------------------
-PE_SetError PROC dwError:DWORD
-    mov dwError, eax
+PE_SetError PROC USES EBX hPE:DWORD, dwError:DWORD
+    .IF hPE != NULL && dwError != PE_ERROR_SUCCESS
+        mov ebx, hPE
+        mov ebx, [ebx].PEINFO.PEHandle 
+        .IF ebx != 0
+            mov eax, 0 ; null out hPE handle if it exists
+            mov [ebx], eax
+        .ENDIF
+    .ENDIF
+    mov eax, dwError
     mov PELIB_ErrorNo, eax
-    xor eax, eax
     ret
 PE_SetError ENDP
 
@@ -1305,7 +1539,6 @@ PESignature PROC USES EBX pPEInMemory:DWORD
         add ebx, [ebx].IMAGE_DOS_HEADER.e_lfanew
         ; ebx is pointer to IMAGE_NT_HEADERS now
         mov eax, [ebx].IMAGE_NT_HEADERS.Signature
-        PrintDec eax
         .IF ax == PE_SIGNATURE
             movzx eax, word ptr [ebx].IMAGE_NT_HEADERS.OptionalHeader.Magic
             .IF ax == IMAGE_NT_OPTIONAL_HDR32_MAGIC

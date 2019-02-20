@@ -41,11 +41,11 @@
 ;------------------------------------------------------------------------------
 ; PE Prototypes
 ;------------------------------------------------------------------------------
-PE_OpenFile             PROTO :DWORD,:DWORD                     ; lpszPEFilename, bReadOnly. Returns in eax a handle used in other functions: hPE
+PE_OpenFile             PROTO :DWORD,:DWORD,:DWORD              ; lpszPEFilename, bReadOnly, lpdwPEHandle. Returns in eax a handle used in other functions: hPE
 PE_CloseFile            PROTO :DWORD                            ; hPE returned from PE_OpenFile.
-PE_Analyze              PROTO :DWORD                            ; pPEInMemory. Returns in eax a handle used in other functions: hPE
+PE_Analyze              PROTO :DWORD,:DWORD                     ; pPEInMemory, lpdwPEHandle. Returns in eax a handle used in other functions: hPE
 PE_Finish               PROTO :DWORD                            ; hPE returned from PE_Analyze.
-PE_GetError             PROTO
+PE_GetError             PROTO                                   ;
 
 ; Header Pointer Functions:
 PE_HeaderDOS            PROTO :DWORD                            ; hPE
@@ -277,18 +277,20 @@ PE32                            EQU PE_ARCH_32
 PE64                            EQU PE_ARCH_64
 
 ; PE Error Enums:
-PE_ERROR_SECTION_INS            EQU -12 ; Failed to add and insert section to PE file
-PE_ERROR_SECTION_DEL            EQU -11 ; Failed to delete section to PE file
-PE_ERROR_SECTION_ADD            EQU -10 ; Failed to add section to PE file
-PE_ERROR_ANALYZE_NULL           EQU  -9 ; PE memory address is 0 or size is 0
-PE_ERROR_ANALYZE_INVALID        EQU  -8 ; Invalid magic no or signature 
-PE_ERROR_ANALYZE_ALLOC          EQU  -7 ; Could not allocate memory for initial analysis
-PE_ERROR_OPEN_VIEW              EQU  -6 ; Could not map a view of PE file
-PE_ERROR_OPEN_MAP               EQU  -5 ; Could not map PE file
-PE_ERROR_OPEN_SIZE_HIGH         EQU  -4 ; File size too large to be a valid PE file
-PE_ERROR_OPEN_SIZE_LOW          EQU  -3 ; File size too low to be a valid PE file
-PE_ERROR_OPEN_FILE              EQU  -2 ; Error opening PE file
-PE_ERROR_OPEN_INVALID           EQU  -1 ; Not a valid PE file 
+PE_ERROR_SECTION_MOVE           EQU -14 ; Failed to move section
+PE_ERROR_SECTION_INS            EQU -13 ; Failed to add and insert section to PE file
+PE_ERROR_SECTION_DEL            EQU -12 ; Failed to delete section to PE file
+PE_ERROR_SECTION_ADD            EQU -11 ; Failed to add section to PE file
+PE_ERROR_ANALYZE_NULL           EQU -10 ; PE memory address is 0 or size is 0
+PE_ERROR_ANALYZE_INVALID        EQU  -9 ; Invalid magic no or signature 
+PE_ERROR_ANALYZE_ALLOC          EQU  -8 ; Could not allocate memory for initial analysis
+PE_ERROR_OPEN_VIEW              EQU  -7 ; Could not map a view of PE file
+PE_ERROR_OPEN_MAP               EQU  -6 ; Could not map PE file
+PE_ERROR_OPEN_SIZE_HIGH         EQU  -5 ; File size too large to be a valid PE file
+PE_ERROR_OPEN_SIZE_LOW          EQU  -4 ; File size too low to be a valid PE file
+PE_ERROR_OPEN_FILE              EQU  -3 ; Error opening PE file
+PE_ERROR_OPEN_INVALID           EQU  -2 ; Not a valid PE file 
+PE_ERROR_NO_HANDLE              EQU  -1 ; No variable provided to store hPE in or hPE is null
 PE_ERROR_SUCCESS                EQU   0 ; Success
 
 ; dwSectionType for PE_SectionHeaderByType:

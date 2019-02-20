@@ -4,9 +4,9 @@
 ; Paste this text at the end of \Radasm\masm\masmApiCall.api to add these to Radasm
 ;
 ;------------------------------------------------------------------------------------------------
-PE_OpenFile,lpszPEFilename,bReadOnly
+PE_OpenFile,lpszPEFilename,bReadOnly,lpdwPEHandle
 PE_CloseFile,hPE
-PE_Analyze,pPEInMemory
+PE_Analyze,pPEInMemory,lpdwPEHandle
 PE_Finish,hPE
 PE_GetError
 ; Header Pointer Functions:
