@@ -103,9 +103,10 @@ PEINFO                      STRUCT
     PE64ImageBase           DQ 0
     PESubsystem             DD 0
     PEDllCharacteristics    DD 0
+    PENumberOfRvaAndSizes   DD 0
     PEDataDirectories       DD 0
     PEExportCount           DD 0
-    PEExportDirPtr          DD 0
+    PEExportDirectoryTable  DD 0
     PEExportAddressTable    DD 0
     PEExportNamePointerTable DD 0
     PEExportOrdinalTable    DD 0
@@ -119,8 +120,16 @@ PEINFO                      STRUCT
     PEResourceDirectoryEntries DD 0
     PEResourceDirectoryString DD 0
     PEResourceDataEntry     DD 0
-    PEDebugDirectory        DD 0
-    PEBaseRelocationBlock   DD 0
+    PEExceptionTable        DD 0
+    PECertificateTable      DD 0
+    PEBaseRelocationTable   DD 0
+    PEDebugData             DD 0
+    PEGlobalPtr             DD 0
+    PETLSTable              DD 0
+    PELoadConfigTable       DD 0
+    PEBoundImportTable      DD 0
+    PEDelayImportDescriptor DD 0
+    PECLRRuntimeHeader      DD 0
     PEMemMapPtr             DD 0
     PEMemMapHandle          DD 0
     PEFileHandle            DD 0
@@ -395,24 +404,16 @@ PE_ALIGN
 ; PE_Analyze is also called by PE_OpenFile.
 ; Note: Use PE_Finish when finished with PE file if using PE_Analyze directly.
 ;------------------------------------------------------------------------------
-PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
+PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
     LOCAL hPE:DWORD
     LOCAL PEMemMapPtr:DWORD
-    LOCAL pNTHeader:DWORD
     LOCAL pFileHeader:DWORD
     LOCAL pOptionalHeader:DWORD
-    LOCAL pDataDirectories:DWORD    
+    LOCAL pDataDirectories:DWORD
     LOCAL pSectionTable:DWORD
     LOCAL pCurrentSection:DWORD
-    LOCAL dwMachine:DWORD
     LOCAL dwNumberOfSections:DWORD
     LOCAL dwSizeOfOptionalHeader:DWORD
-    LOCAL dwCharacteristics:DWORD
-    LOCAL dwAddressOfEntryPoint:DWORD
-    LOCAL dwImageBase:DWORD
-    LOCAL qwImageBase:QWORD
-    LOCAL dwSubsystem:DWORD
-    LOCAL dwDllCharacteristics:DWORD
     LOCAL dwNumberOfRvaAndSizes:DWORD
     LOCAL dwCurrentSection:DWORD
     LOCAL bPE64:DWORD
@@ -453,10 +454,10 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
     .ENDIF
     mov hPE, eax
     
-    mov ebx, hPE
+    mov edx, hPE
     mov eax, PEMemMapPtr
-    mov [ebx].PEINFO.PEMemMapPtr, eax
-    mov [ebx].PEINFO.PEDOSHeader, eax
+    mov [edx].PEINFO.PEMemMapPtr, eax
+    mov [edx].PEINFO.PEDOSHeader, eax
 
     ; Process PE in memory
     mov eax, PEMemMapPtr
@@ -466,32 +467,36 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
         ; Get headers: NT, File, Optional & other useful fields
         ;----------------------------------------------------------------------
         add eax, [ebx].IMAGE_DOS_HEADER.e_lfanew
-        mov pNTHeader, eax
+        mov [edx].PEINFO.PENTHeader, eax
         mov ebx, eax ; ebx points to IMAGE_NT_HEADERS
         lea eax, [ebx].IMAGE_NT_HEADERS.FileHeader
+        mov [edx].PEINFO.PEFileHeader, eax
         mov pFileHeader, eax
         lea eax, [ebx].IMAGE_NT_HEADERS.OptionalHeader
+        mov [edx].PEINFO.PEOptionalHeader, eax
         mov pOptionalHeader, eax
-        
         mov ebx, pFileHeader ; ebx points to IMAGE_FILE_HEADER
         movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Machine
-        mov dwMachine, eax
+        mov [edx].PEINFO.PEMachine, eax
         movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.NumberOfSections
+        mov [edx].PEINFO.PESectionCount, eax
         mov dwNumberOfSections, eax
         movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.SizeOfOptionalHeader
+        mov [edx].PEINFO.PEOptionalHeaderSize, eax
         mov dwSizeOfOptionalHeader, eax
         movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Characteristics
-        mov dwCharacteristics, eax
-                
+        mov [edx].PEINFO.PECharacteristics, eax
+        and eax, IMAGE_FILE_DLL
+        .IF eax == IMAGE_FILE_DLL
+            mov [edx].PEINFO.PEDLL, TRUE
+        .ELSE
+            mov [edx].PEINFO.PEDLL, FALSE
+        .ENDIF        
+        
         .IF dwSizeOfOptionalHeader == 0
             mov pOptionalHeader, 0
             mov pDataDirectories, 0
             mov dwNumberOfRvaAndSizes, 0
-            mov dwImageBase, 0
-            mov dword ptr qwImageBase, 0
-            mov dword ptr qwImageBase+4, 0
-            mov dwSubsystem, 0
-            mov dwDllCharacteristics, 0
             mov bPE64, FALSE
         .ELSE
             ;------------------------------------------------------------------
@@ -501,11 +506,11 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             movzx eax, word ptr [ebx]
             .IF eax == IMAGE_NT_OPTIONAL_HDR32_MAGIC ; PE32
                 mov ebx, hPE
-                mov [ebx].PEINFO.PE64, FALSE
+                mov [edx].PEINFO.PE64, FALSE
                 mov bPE64, FALSE
             .ELSEIF eax == IMAGE_NT_OPTIONAL_HDR64_MAGIC ; PE32+ (PE64)
                 mov ebx, hPE
-                mov [ebx].PEINFO.PE64, TRUE
+                mov [edx].PEINFO.PE64, TRUE
                 mov bPE64, TRUE
             .ELSE ; ROM or something else
                 Invoke PE_SetError, hPE, PE_ERROR_ANALYZE_INVALID
@@ -521,7 +526,7 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             
             mov ebx, pOptionalHeader; ebx points to IMAGE_OPTIONAL_HEADER
             mov eax, [ebx].IMAGE_OPTIONAL_HEADER.AddressOfEntryPoint
-            mov dwAddressOfEntryPoint, eax
+            mov [edx].PEINFO.PEAddressOfEntryPoint, eax
 
             mov eax, dwSizeOfOptionalHeader
             .IF eax == 28 || eax == 24
@@ -530,11 +535,6 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                 ;--------------------------------------------------------------
                 mov pDataDirectories, 0
                 mov dwNumberOfRvaAndSizes, 0
-                mov dwImageBase, 0
-                mov dword ptr qwImageBase, 0
-                mov dword ptr qwImageBase+4, 0
-                mov dwSubsystem, 0
-                mov dwDllCharacteristics, 0
             .ELSEIF eax == 68 || eax == 88 ; Windows specific fields in IMAGE_OPTIONAL_HEADER
                 ;--------------------------------------------------------------
                 ; Windows specific fields in IMAGE_OPTIONAL_HEADER
@@ -545,21 +545,21 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                 mov ebx, pOptionalHeader ; ebx points to IMAGE_OPTIONAL_HEADER
                 .IF bPE64 == TRUE ; ebx points to IMAGE_OPTIONAL_HEADER64
                     mov eax, dword ptr [ebx].IMAGE_OPTIONAL_HEADER64.ImageBase
-                    mov dword ptr qwImageBase, eax
+                    mov dword ptr [edx].PEINFO.PE64ImageBase, eax
                     mov eax, dword ptr [ebx+4].IMAGE_OPTIONAL_HEADER64.ImageBase
-                    mov dword ptr qwImageBase+4, eax
-                    mov dwImageBase, 0
+                    mov dword ptr [edx+4].PEINFO.PE64ImageBase, eax 
+                    mov [edx].PEINFO.PEImageBase, 0
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.Subsystem
-                    mov dwSubsystem, eax
+                    mov [edx].PEINFO.PESubsystem, eax
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.DllCharacteristics
-                    mov dwDllCharacteristics, eax
-                .ELSE ; ebx points to IMAGE_OPTIONAL_HEADER32
+                    mov [edx].PEINFO.PEDllCharacteristics, eax
+                 .ELSE ; ebx points to IMAGE_OPTIONAL_HEADER32
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.ImageBase
-                    mov dwImageBase, eax
+                    mov [edx].PEINFO.PEImageBase, eax
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.Subsystem
-                    mov dwSubsystem, eax
+                    mov [edx].PEINFO.PESubsystem, eax
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.DllCharacteristics
-                    mov dwDllCharacteristics, eax
+                    mov [edx].PEINFO.PEDllCharacteristics, eax
                 .ENDIF
             .ELSE
                 ;--------------------------------------------------------------
@@ -568,41 +568,46 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                 mov ebx, pOptionalHeader ; ebx points to IMAGE_OPTIONAL_HEADER
                 .IF bPE64 == TRUE ; ebx points to IMAGE_OPTIONAL_HEADER64
                     mov eax, dword ptr [ebx].IMAGE_OPTIONAL_HEADER64.ImageBase
-                    mov dword ptr qwImageBase, eax
+                    mov dword ptr [edx].PEINFO.PE64ImageBase, eax
                     mov eax, dword ptr [ebx+4].IMAGE_OPTIONAL_HEADER64.ImageBase
-                    mov dword ptr qwImageBase+4, eax
-                    mov dwImageBase, 0
+                    mov dword ptr [edx+4].PEINFO.PE64ImageBase, eax 
+                    mov [edx].PEINFO.PEImageBase, 0
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.Subsystem
-                    mov dwSubsystem, eax
+                    mov [edx].PEINFO.PESubsystem, eax
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.DllCharacteristics
-                    mov dwDllCharacteristics, eax
+                    mov [edx].PEINFO.PEDllCharacteristics, eax
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.NumberOfRvaAndSizes
+                    mov [edx].PEINFO.PENumberOfRvaAndSizes, eax
                     mov dwNumberOfRvaAndSizes, eax
                     mov ebx, pOptionalHeader
+                    add ebx, SIZEOF_STANDARD_FIELDS_PE64
                     add ebx, SIZEOF_WINDOWS_FIELDS_PE64                    
-                    mov pDataDirectories, eax
+                    mov pDataDirectories, ebx
                 .ELSE ; ebx points to IMAGE_OPTIONAL_HEADER32
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.ImageBase
-                    mov dwImageBase, eax
+                    mov [edx].PEINFO.PEImageBase, eax
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.Subsystem
-                    mov dwSubsystem, eax
+                    mov [edx].PEINFO.PESubsystem, eax
                     movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.DllCharacteristics
-                    mov dwDllCharacteristics, eax
+                    mov [edx].PEINFO.PEDllCharacteristics, eax
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.NumberOfRvaAndSizes
+                    mov [edx].PEINFO.PENumberOfRvaAndSizes, eax
                     mov dwNumberOfRvaAndSizes, eax
                     mov ebx, pOptionalHeader
+                    add ebx, SIZEOF_STANDARD_FIELDS_PE32
                     add ebx, SIZEOF_WINDOWS_FIELDS_PE32
-                    mov pDataDirectories, eax
+                    mov pDataDirectories, ebx
                 .ENDIF                
             .ENDIF
         .ENDIF
-
+        
         ;----------------------------------------------------------------------
         ; Get pointer to SectionTable
         ;----------------------------------------------------------------------
         mov eax, pFileHeader
         add eax, SIZEOF IMAGE_FILE_HEADER
         add eax, dwSizeOfOptionalHeader
+        mov [edx].PEINFO.PESectionTable, eax
         mov pSectionTable, eax
         mov pCurrentSection, eax
         
@@ -610,17 +615,277 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
         mov eax, 0
         .WHILE eax < dwNumberOfSections
             mov ebx, pCurrentSection
-            
             ; do stuff with sections
             ; PointerToRawData to get section data
-            
-            
             add pCurrentSection, SIZEOF IMAGE_SECTION_HEADER
             inc dwCurrentSection
             mov eax, dwCurrentSection
         .ENDW
         
+        ;----------------------------------------------------------------------
+        ; Get Data Directories
+        ;----------------------------------------------------------------------
+        IFDEF DEBUG32
+        mov eax, dwNumberOfRvaAndSizes
+        mov ebx, SIZEOF IMAGE_DATA_DIRECTORY
+        mul ebx
+        DbgDump pDataDirectories, eax
+        ENDIF
+
+        .IF pDataDirectories != 0
+            mov edx, hPE
+            .IF dwNumberOfRvaAndSizes > 0 ; Export Table
+                mov ebx, pDataDirectories
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEExportDirectoryTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 1 ; Import Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEImportDirectoryTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 2 ; Resource Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEResourceDirectoryTable, eax
+                .ENDIF
+            .ENDIF            
+            .IF dwNumberOfRvaAndSizes > 3 ; Exception Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEExceptionTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 4 ; Certificate Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PECertificateTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 5 ; Base Relocation Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEBaseRelocationTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 6 ; Debug Data
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEDebugData, eax
+                .ENDIF
+            .ENDIF
+            ;.IF dwNumberOfRvaAndSizes > 7 ; Data Directory Architecture
+                ;mov ebx, pDataDirectories
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                ;.IF eax != 0
+                ;    add eax, PEMemMapPtr
+                ;    mov pDataDirArchitecture, eax
+                ;.ENDIF
+            ;.ENDIF
+            .IF dwNumberOfRvaAndSizes > 8 ; Global Ptr
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEGlobalPtr, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 9 ; TLS Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PETLSTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 10 ; Load Config Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PELoadConfigTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 11 ; Bound Import Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEBoundImportTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 12 ; Import Address Table
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEImportAddressTable, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 13 ; Delay Import Descriptor
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PEDelayImportDescriptor, eax
+                .ENDIF
+            .ENDIF
+            .IF dwNumberOfRvaAndSizes > 14 ; CLR Runtime Header
+                mov ebx, pDataDirectories
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                .IF eax != 0
+                    add eax, PEMemMapPtr
+                    mov [edx].PEINFO.PECLRRuntimeHeader, eax
+                .ENDIF
+            .ENDIF
+            ;.IF dwNumberOfRvaAndSizes > 15 ; DataDir Reserved
+                ;mov ebx, pDataDirectories
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;add ebx, SIZEOF IMAGE_DATA_DIRECTORY
+                ;mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
+                ;.IF eax != 0
+                ;    add eax, PEMemMapPtr
+                ;    mov pDataDirReserved, eax
+                ;.ENDIF
+            ;.ENDIF
+        .ENDIF 
+        
     .ELSE
+        
         Invoke PE_SetError, hPE, PE_ERROR_ANALYZE_INVALID
         .IF hPE != NULL
             Invoke GlobalFree, hPE
@@ -633,21 +898,6 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
     .ENDIF
     
     IFDEF DEBUG32
-    PrintDec pNTHeader
-    PrintDec pFileHeader
-    PrintDec pOptionalHeader
-    PrintDec dwNumberOfSections
-    PrintDec dwSizeOfOptionalHeader
-    PrintDec pSectionTable
-    PrintText '-------------'
-    PrintDec dwMachine
-    PrintDec dwNumberOfSections
-    PrintDec dwSizeOfOptionalHeader
-    PrintDec dwCharacteristics
-    PrintDec dwAddressOfEntryPoint
-    PrintDec dwSubsystem
-    PrintDec dwDllCharacteristics
-    
     mov eax, dwNumberOfSections
     mov ebx, SIZEOF IMAGE_SECTION_HEADER
     mul ebx
@@ -655,58 +905,16 @@ PE_Analyze PROC USES EBX pPEInMemory:DWORD, lpdwPEHandle:DWORD
     ENDIF
 
     ;--------------------------------------------------------------------------
-    ; Updated PEINFO with information
+    ; Update PEINFO handle information
     ;--------------------------------------------------------------------------
-    mov ebx, hPE
+    mov edx, hPE
     mov eax, lpdwPEHandle
-    mov [ebx].PEINFO.PEHandle, eax
-    ; Header pointers
-    mov eax, pNTHeader
-    mov [ebx].PEINFO.PENTHeader, eax
-    mov eax, pFileHeader
-    mov [ebx].PEINFO.PEFileHeader, eax
-    mov eax, pOptionalHeader
-    mov [ebx].PEINFO.PEOptionalHeader, eax
-    mov eax, pDataDirectories
-    mov [ebx].PEINFO.PEDataDirectories, eax
-    mov eax, pSectionTable
-    mov [ebx].PEINFO.PESectionTable, eax
-    ; Info
-    mov eax, dwMachine
-    mov [ebx].PEINFO.PEMachine, eax
-    mov eax, dwNumberOfSections
-    mov [ebx].PEINFO.PESectionCount, eax    
-    mov eax, dwSizeOfOptionalHeader
-    mov [ebx].PEINFO.PEOptionalHeaderSize, eax
-    mov eax, dwCharacteristics
-    mov [ebx].PEINFO.PECharacteristics, eax
-    and eax, IMAGE_FILE_DLL
-    .IF eax == IMAGE_FILE_DLL
-        mov [ebx].PEINFO.PEDLL, TRUE
-    .ELSE
-        mov [ebx].PEINFO.PEDLL, FALSE
-    .ENDIF
-    mov eax, dwAddressOfEntryPoint
-    mov [ebx].PEINFO.PEAddressOfEntryPoint, eax
-    .IF bPE64 == TRUE
-        mov eax, dword ptr qwImageBase
-        mov dword ptr [ebx].PEINFO.PE64ImageBase, eax
-        mov eax, dword ptr qwImageBase+4
-        mov dword ptr [ebx].PEINFO.PE64ImageBase, eax
-    .ELSE
-        mov eax, dwImageBase
-        mov [ebx].PEINFO.PEImageBase, eax
-    .ENDIF
-    mov eax, dwSubsystem
-    mov [ebx].PEINFO.PESubsystem, eax
-    mov eax, dwDllCharacteristics
-    mov [ebx].PEINFO.PEDllCharacteristics, eax
+    mov [edx].PEINFO.PEHandle, eax
 
     mov ebx, lpdwPEHandle
     mov eax, hPE
     mov [ebx], eax
 
-    ;mov eax, hPE
     mov eax, TRUE
     ret
 PE_Analyze ENDP
