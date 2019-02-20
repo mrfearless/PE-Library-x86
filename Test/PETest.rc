@@ -1,0 +1,2 @@
+#include "Res/PETestRes.rc"
+#include "Res/PETestVer.rc"
