@@ -79,8 +79,11 @@ PE_SectionMove          PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSecti
 ;------------------------------------------------------------------------------
 PE_Machine              PROTO :DWORD                    ; hPE
 PE_Characteristics      PROTO :DWORD                    ; hPE
+PE_LinkerVersion        PROTO :DWORD                    ; hPE
 PE_AddressOfEntryPoint  PROTO :DWORD                    ; hPE
 PE_ImageBase            PROTO :DWORD                    ; hPE
+PE_SizeOfImage          PROTO :DWORD                    ; hPE
+PE_CheckSum             PROTO :DWORD                    ; hPE
 PE_Subsystem            PROTO :DWORD                    ; hPE
 PE_DllCharacteristics   PROTO :DWORD                    ; hPE
 PE_IsDll                PROTO :DWORD                    ; hPE

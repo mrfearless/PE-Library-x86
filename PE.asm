@@ -94,15 +94,10 @@ PEINFO                      STRUCT
     PEFileHeader            DD 0
     PEOptionalHeader        DD 0
     PESectionTable          DD 0
-    PEMachine               DD 0
     PESectionCount          DD 0
     PEOptionalHeaderSize    DD 0
-    PECharacteristics       DD 0
-    PEAddressOfEntryPoint   DD 0
     PEImageBase             DD 0
     PE64ImageBase           DQ 0
-    PESubsystem             DD 0
-    PEDllCharacteristics    DD 0
     PENumberOfRvaAndSizes   DD 0
     PEDataDirectories       DD 0
     PEExportCount           DD 0
@@ -476,8 +471,6 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
         mov [edx].PEINFO.PEOptionalHeader, eax
         mov pOptionalHeader, eax
         mov ebx, pFileHeader ; ebx points to IMAGE_FILE_HEADER
-        movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Machine
-        mov [edx].PEINFO.PEMachine, eax
         movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.NumberOfSections
         mov [edx].PEINFO.PESectionCount, eax
         mov dwNumberOfSections, eax
@@ -485,7 +478,6 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
         mov [edx].PEINFO.PEOptionalHeaderSize, eax
         mov dwSizeOfOptionalHeader, eax
         movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Characteristics
-        mov [edx].PEINFO.PECharacteristics, eax
         and eax, IMAGE_FILE_DLL
         .IF eax == IMAGE_FILE_DLL
             mov [edx].PEINFO.PEDLL, TRUE
@@ -524,10 +516,6 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                 ret
             .ENDIF
             
-            mov ebx, pOptionalHeader; ebx points to IMAGE_OPTIONAL_HEADER
-            mov eax, [ebx].IMAGE_OPTIONAL_HEADER.AddressOfEntryPoint
-            mov [edx].PEINFO.PEAddressOfEntryPoint, eax
-
             mov eax, dwSizeOfOptionalHeader
             .IF eax == 28 || eax == 24
                 ;--------------------------------------------------------------
@@ -549,17 +537,9 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                     mov eax, dword ptr [ebx+4].IMAGE_OPTIONAL_HEADER64.ImageBase
                     mov dword ptr [edx+4].PEINFO.PE64ImageBase, eax 
                     mov [edx].PEINFO.PEImageBase, 0
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.Subsystem
-                    mov [edx].PEINFO.PESubsystem, eax
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.DllCharacteristics
-                    mov [edx].PEINFO.PEDllCharacteristics, eax
                  .ELSE ; ebx points to IMAGE_OPTIONAL_HEADER32
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.ImageBase
                     mov [edx].PEINFO.PEImageBase, eax
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.Subsystem
-                    mov [edx].PEINFO.PESubsystem, eax
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.DllCharacteristics
-                    mov [edx].PEINFO.PEDllCharacteristics, eax
                 .ENDIF
             .ELSE
                 ;--------------------------------------------------------------
@@ -572,10 +552,6 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                     mov eax, dword ptr [ebx+4].IMAGE_OPTIONAL_HEADER64.ImageBase
                     mov dword ptr [edx+4].PEINFO.PE64ImageBase, eax 
                     mov [edx].PEINFO.PEImageBase, 0
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.Subsystem
-                    mov [edx].PEINFO.PESubsystem, eax
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.DllCharacteristics
-                    mov [edx].PEINFO.PEDllCharacteristics, eax
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.NumberOfRvaAndSizes
                     mov [edx].PEINFO.PENumberOfRvaAndSizes, eax
                     mov dwNumberOfRvaAndSizes, eax
@@ -586,10 +562,6 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
                 .ELSE ; ebx points to IMAGE_OPTIONAL_HEADER32
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.ImageBase
                     mov [edx].PEINFO.PEImageBase, eax
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.Subsystem
-                    mov [edx].PEINFO.PESubsystem, eax
-                    movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.DllCharacteristics
-                    mov [edx].PEINFO.PEDllCharacteristics, eax
                     mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.NumberOfRvaAndSizes
                     mov [edx].PEINFO.PENumberOfRvaAndSizes, eax
                     mov dwNumberOfRvaAndSizes, eax
@@ -1571,8 +1543,10 @@ PE_Machine PROC USES EBX hPE:DWORD
         ret
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PEMachine
+    
+    Invoke PE_HeaderFile, hPE
+    mov ebx, eax
+    movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Machine
     ret
 PE_Machine ENDP
 
@@ -1587,10 +1561,42 @@ PE_Characteristics PROC USES EBX hPE:DWORD
         ret
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PECharacteristics
+    
+    Invoke PE_HeaderFile, hPE
+    mov ebx, eax
+    movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Characteristics
     ret
 PE_Characteristics ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_LinkerVersion - returns major and minor linker version in ax 
+;----------------------------------------------------------------------------
+PE_LinkerVersion PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    Invoke PE_HeaderOptional, hPE
+    mov ebx, eax
+    
+    Invoke PE_Is64, hPE
+    .IF eax == TRUE
+        movzx eax, byte ptr [ebx].IMAGE_OPTIONAL_HEADER64.MajorLinkerVersion
+        mov ah, al
+        movzx ebx, byte ptr [ebx].IMAGE_OPTIONAL_HEADER64.MinorLinkerVersion
+        mov al, bl
+    .ELSE    
+        movzx eax, byte ptr [ebx].IMAGE_OPTIONAL_HEADER32.MajorLinkerVersion
+        mov ah, al
+        movzx ebx, byte ptr [ebx].IMAGE_OPTIONAL_HEADER32.MinorLinkerVersion
+        mov al, bl
+    .ENDIF
+    ret
+PE_LinkerVersion ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
@@ -1603,8 +1609,16 @@ PE_AddressOfEntryPoint PROC USES EBX hPE:DWORD
         ret
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PEAddressOfEntryPoint
+    
+    Invoke PE_HeaderOptional, hPE
+    mov ebx, eax
+    
+    Invoke PE_Is64, hPE
+    .IF eax == TRUE
+        mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.AddressOfEntryPoint
+    .ELSE
+        mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.AddressOfEntryPoint
+    .ENDIF
     ret
 PE_AddressOfEntryPoint ENDP
 
@@ -1619,6 +1633,7 @@ PE_ImageBase PROC USES EBX hPE:DWORD
         ret
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PE64
     .IF eax == TRUE
@@ -1633,6 +1648,54 @@ PE_ImageBase ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
+; PE_ImageBase - returns size of image in eax
+;----------------------------------------------------------------------------
+PE_SizeOfImage PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    Invoke PE_HeaderOptional, hPE
+    mov ebx, eax
+    
+    Invoke PE_Is64, hPE
+    .IF eax == TRUE
+        mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.SizeOfImage
+    .ELSE
+        mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.SizeOfImage
+    .ENDIF
+    ret
+PE_SizeOfImage ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_CheckSum - returns checksum in eax
+;----------------------------------------------------------------------------
+PE_CheckSum PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    Invoke PE_HeaderOptional, hPE
+    mov ebx, eax
+    
+    Invoke PE_Is64, hPE
+    .IF eax == TRUE
+        mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.CheckSum
+    .ELSE
+        mov eax, [ebx].IMAGE_OPTIONAL_HEADER32.CheckSum
+    .ENDIF
+    ret
+PE_CheckSum ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
 ; PE_Subsystem - returns subsystem id in eax
 ;----------------------------------------------------------------------------
 PE_Subsystem PROC USES EBX hPE:DWORD
@@ -1642,8 +1705,16 @@ PE_Subsystem PROC USES EBX hPE:DWORD
         ret
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PESubsystem
+    
+    Invoke PE_HeaderOptional, hPE
+    mov ebx, eax
+    
+    Invoke PE_Is64, hPE
+    .IF eax == TRUE
+        movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.Subsystem
+    .ELSE
+        movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.Subsystem
+    .ENDIF
     ret
 PE_Subsystem ENDP
 
@@ -1658,10 +1729,19 @@ PE_DllCharacteristics PROC USES EBX hPE:DWORD
         ret
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PEDllCharacteristics
+    
+    Invoke PE_HeaderOptional, hPE
+    mov ebx, eax
+    
+    Invoke PE_Is64, hPE
+    .IF eax == TRUE
+        movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.DllCharacteristics
+    .ELSE
+        movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER32.DllCharacteristics
+    .ENDIF    
     ret
 PE_DllCharacteristics ENDP
+
 
 PE_ALIGN
 ;----------------------------------------------------------------------------

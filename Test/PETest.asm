@@ -70,8 +70,22 @@ DoPEFile PROC
     LOCAL pHeaderNT:DWORD
     LOCAL pHeaderFile:DWORD
     LOCAL pHeaderOptional:DWORD
-    LOCAL dwSectionCount:DWORD
     LOCAL pHeaderSections:DWORD
+    LOCAL dwSectionCount:DWORD    
+    LOCAL dwMachine:DWORD
+    LOCAL dwCharacteristics:DWORD
+    LOCAL dwLinkerVersion:DWORD
+    LOCAL dwMajorLinkerVersion:DWORD
+    LOCAL dwMinorLinkerVersion:DWORD
+    LOCAL dwAddressOfEntryPoint:DWORD
+    LOCAL dwImageBase:DWORD
+    LOCAL qwImageBase:QWORD
+    LOCAL dwSizeOfImage:DWORD
+    LOCAL dwCheckSum:DWORD
+    LOCAL dwSubsystem:DWORD
+    LOCAL dwDllCharacteristics:DWORD
+    LOCAL bPEDLL:DWORD
+    LOCAL bPE64:DWORD
 
     ;--------------------------------------------------------------------------
     ; Open PE file (ourself: PEText.exe)
@@ -101,12 +115,11 @@ DoPEFile PROC
     mov pHeaderFile, eax
     Invoke PE_HeaderOptional, hPE
     mov pHeaderOptional, eax
-    
-    Invoke PE_SectionHeaderCount, hPE
-    mov dwSectionCount, eax
     Invoke PE_HeaderSections, hPE
     mov pHeaderSections, eax
-    
+    Invoke PE_SectionHeaderCount, hPE
+    mov dwSectionCount, eax
+
     IFDEF DEBUG32
         PrintDec hPE
         PrintDec pHeaderDOS
@@ -120,6 +133,42 @@ DoPEFile PROC
         mul ebx
         DbgDump pHeaderSections, eax 
     ENDIF
+    
+    ;--------------------------------------------------------------------------
+    ; Get information from PE:
+    ;--------------------------------------------------------------------------
+    Invoke PE_IsDll, hPE
+    mov bPEDLL, eax
+    Invoke PE_Is64, hPE
+    mov bPE64, eax    
+    Invoke PE_Machine, hPE
+    mov dwMachine, eax
+    Invoke PE_Characteristics, hPE
+    mov dwCharacteristics, eax
+    Invoke PE_LinkerVersion, hPE
+    mov dwLinkerVersion, eax
+    xor ebx, ebx
+    mov bl, al
+    mov dwMinorLinkerVersion, ebx
+    mov bl, ah
+    mov dwMajorLinkerVersion, ebx
+    Invoke PE_AddressOfEntryPoint, hPE
+    mov dwAddressOfEntryPoint, eax
+    Invoke PE_ImageBase, hPE
+    .IF bPE64 == TRUE
+        mov dword ptr [qwImageBase], eax
+        mov dword ptr [qwImageBase+4], edx
+    .ELSE
+        mov dwImageBase, eax
+    .ENDIF
+    Invoke PE_SizeOfImage, hPE
+    mov dwSizeOfImage, eax
+    Invoke PE_CheckSum, hPE
+    mov dwCheckSum, eax
+    Invoke PE_Subsystem, hPE
+    mov dwSubsystem, eax
+    Invoke PE_DllCharacteristics, hPE
+    mov dwDllCharacteristics, eax
     
     ;--------------------------------------------------------------------------
     ; Output PE information:
@@ -159,6 +208,70 @@ DoPEFile PROC
     Invoke ConsoleStdOut, Addr szValueBuffer
     Invoke ConsoleStdOut, Addr szCRLF
     
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    ; Information
+    Invoke ConsoleStdOut, CTEXT("Machine: ")
+    Invoke DwordToAscii, dwMachine, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    Invoke ConsoleStdOut, CTEXT("Characteristics: ")
+    Invoke DwordToAscii, dwCharacteristics, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("MajorLinkerVersion: ")
+    Invoke DwordToAscii, dwMajorLinkerVersion, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    Invoke ConsoleStdOut, CTEXT("MinorLinkerVersion: ")
+    Invoke DwordToAscii, dwMinorLinkerVersion, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("AddressOfEntryPoint: ")
+    Invoke DwordToAscii, dwAddressOfEntryPoint, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("ImageBase: ")
+    .IF bPE64 == TRUE
+        mov eax, dword ptr [qwImageBase+4]
+        mov dwImageBase, eax
+        Invoke DwordToAscii, dwImageBase, Addr szValueBuffer
+        Invoke ConsoleStdOut, Addr szValueBuffer
+        mov eax, dword ptr [qwImageBase]
+        mov dwImageBase, eax
+        Invoke DwordToAscii, dwImageBase, Addr szValueBuffer
+        Invoke ConsoleStdOut, Addr szValueBuffer
+    .ELSE
+        Invoke DwordToAscii, dwImageBase, Addr szValueBuffer
+        Invoke ConsoleStdOut, Addr szValueBuffer
+    .ENDIF
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("SizeOfImage: ")
+    Invoke DwordToAscii, dwSizeOfImage, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("CheckSum: ")
+    Invoke DwordToAscii, dwCheckSum, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("Subsystem: ")
+    Invoke DwordToAscii, dwSubsystem, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    Invoke ConsoleStdOut, CTEXT("DllCharacteristics: ")
+    Invoke DwordToAscii, dwDllCharacteristics, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+
     ;--------------------------------------------------------------------------
     ; Close PE file. hPE will be set to NULL automatically
     ;--------------------------------------------------------------------------

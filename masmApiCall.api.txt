@@ -33,9 +33,13 @@ PE_SectionMove,hPE,lpszSectionName,dwSectionIndex,lpszSectionNameToMoveTo,dwSect
 ; Common Info Functions:
 PE_Machine,hPE
 PE_Characteristics,hPE
+PE_LinkerVersion,hPE
 PE_AddressOfEntryPoint,hPE
 PE_ImageBase,hPE
+PE_SizeOfImage,hPE
+PE_CheckSum,hPE
 PE_Subsystem,hPE
 PE_DllCharacteristics,hPE
 PE_IsDll,hPE
 PE_Is64,hPE
+
