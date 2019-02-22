@@ -41,35 +41,39 @@
 ;------------------------------------------------------------------------------
 ; PE Prototypes
 ;------------------------------------------------------------------------------
-PE_OpenFile             PROTO :DWORD,:DWORD,:DWORD              ; lpszPEFilename, bReadOnly, lpdwPEHandle. Returns in eax a handle used in other functions: hPE
-PE_CloseFile            PROTO :DWORD                            ; hPE returned from PE_OpenFile.
-PE_Analyze              PROTO :DWORD,:DWORD                     ; pPEInMemory, lpdwPEHandle. Returns in eax a handle used in other functions: hPE
-PE_Finish               PROTO :DWORD                            ; hPE returned from PE_Analyze.
-PE_GetError             PROTO                                   ;
+PE_OpenFile                 PROTO :DWORD,:DWORD,:DWORD              ; lpszPEFilename, bReadOnly, lpdwPEHandle. Returns in eax a handle used in other functions: hPE
+PE_CloseFile                PROTO :DWORD                            ; hPE returned from PE_OpenFile.
+PE_Analyze                  PROTO :DWORD,:DWORD                     ; pPEInMemory, lpdwPEHandle. Returns in eax a handle used in other functions: hPE
+PE_Finish                   PROTO :DWORD                            ; hPE returned from PE_Analyze.
+PE_GetError                 PROTO                                   ;
 
 ; Header Pointer Functions:
-PE_HeaderDOS            PROTO :DWORD                            ; hPE
-PE_HeaderNT             PROTO :DWORD                            ; hPE
-PE_HeaderFile           PROTO :DWORD                            ; hPE
-PE_HeaderOptional       PROTO :DWORD                            ; hPE
-PE_HeaderSections       PROTO :DWORD                            ; hPE
-PE_DirectoryExportTable PROTO :DWORD                            ; hPE
-PE_DirectoryImportTable PROTO :DWORD                            ; hPE
+PE_HeaderDOS                PROTO :DWORD                            ; hPE
+PE_HeaderNT                 PROTO :DWORD                            ; hPE
+PE_HeaderFile               PROTO :DWORD                            ; hPE
+PE_HeaderOptional           PROTO :DWORD                            ; hPE
+PE_HeaderSections           PROTO :DWORD                            ; hPE
 
 ; Section Functions:
-PE_SectionHeaderCount   PROTO :DWORD                            ; hPE
-PE_SectionsHeaders      PROTO :DWORD                            ; hPE
-PE_SectionHeaderByIndex PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
-PE_SectionHeaderByName  PROTO :DWORD,:DWORD                     ; hPE, lpszSectionName
-PE_SectionHeaderByType  PROTO :DWORD,:DWORD                     ; hPE, dwSectionType
-PE_SectionHeaderByAddr  PROTO :DWORD,:DWORD                     ; hPE, dwAddress
+PE_SectionHeaderCount       PROTO :DWORD                            ; hPE
+PE_SectionsHeaders          PROTO :DWORD                            ; hPE
+PE_SectionHeaderByIndex     PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
+PE_SectionHeaderByName      PROTO :DWORD,:DWORD                     ; hPE, lpszSectionName
+PE_SectionHeaderByType      PROTO :DWORD,:DWORD                     ; hPE, dwSectionType
+PE_SectionHeaderByAddr      PROTO :DWORD,:DWORD                     ; hPE, dwAddress
 
-PE_SectionAdd           PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics
-PE_SectionDelete        PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpszSectionName, dwSectionIndex
-PE_SectionInsert        PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics, dwSectionIndex
-PE_SectionMove          PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionIndex, lpszSectionNameToMoveTo, dwSectionIndexToMoveTo
+PE_SectionAdd               PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics
+PE_SectionDelete            PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpszSectionName, dwSectionIndex
+PE_SectionInsert            PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics, dwSectionIndex
+PE_SectionMove              PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionIndex, lpszSectionNameToMoveTo, dwSectionIndexToMoveTo
 
-
+; Import Functions
+PE_ImportDirectoryTable     PROTO :DWORD                            ; hPE
+PE_ImportLookupTable        PROTO :DWORD,:DWORD                     ; hPE, dwImportDirectoryEntryIndex
+PE_ImportHintNameTable      PROTO :DWORD                            ; hPE
+PE_ImportAddressTable       PROTO :DWORD                            ; hPE
+PE_ImportDirectoryEntryCount PROTO :DWORD                           ; hPE
+PE_ImportDirectoryEntryDLL  PROTO :DWORD,:DWORD                     ; hPE, dwImportDirectoryEntryIndex
 
 ; Common Info Functions
 ;------------------------------------------------------------------------------
@@ -77,17 +81,22 @@ PE_SectionMove          PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSecti
 ; in various PE structures. Others can be read by obtaining the pointer to the
 ; relevant PE structure and reading the required field(s) directly.
 ;------------------------------------------------------------------------------
-PE_Machine              PROTO :DWORD                    ; hPE
-PE_Characteristics      PROTO :DWORD                    ; hPE
-PE_LinkerVersion        PROTO :DWORD                    ; hPE
-PE_AddressOfEntryPoint  PROTO :DWORD                    ; hPE
-PE_ImageBase            PROTO :DWORD                    ; hPE
-PE_SizeOfImage          PROTO :DWORD                    ; hPE
-PE_CheckSum             PROTO :DWORD                    ; hPE
-PE_Subsystem            PROTO :DWORD                    ; hPE
-PE_DllCharacteristics   PROTO :DWORD                    ; hPE
-PE_IsDll                PROTO :DWORD                    ; hPE
-PE_Is64                 PROTO :DWORD                    ; hPE
+PE_Machine                  PROTO :DWORD                            ; hPE
+PE_Characteristics          PROTO :DWORD                            ; hPE
+PE_LinkerVersion            PROTO :DWORD                            ; hPE
+PE_AddressOfEntryPoint      PROTO :DWORD                            ; hPE
+PE_ImageBase                PROTO :DWORD                            ; hPE
+PE_SizeOfImage              PROTO :DWORD                            ; hPE
+PE_CheckSum                 PROTO :DWORD                            ; hPE
+PE_Subsystem                PROTO :DWORD                            ; hPE
+PE_DllCharacteristics       PROTO :DWORD                            ; hPE
+PE_IsDll                    PROTO :DWORD                            ; hPE
+PE_Is64                     PROTO :DWORD                            ; hPE
+
+; Helper Functions:
+PE_RVAToOffset              PROTO :DWORD,:DWORD                     ; hPE, dwRVA
+PE_OffsetToRVA              PROTO :DWORD,:DWORD                     ; hPE, dwOffset
+
 
 
 
@@ -242,6 +251,81 @@ IMAGE_EXPORT_DIRECTORY    STRUCT
     AddressOfNames        DWORD ?
     AddressOfNameOrdinals DWORD ?
 IMAGE_EXPORT_DIRECTORY    ENDS
+ENDIF
+
+IFNDEF IMAGE_IMPORT_DESCRIPTOR
+IMAGE_IMPORT_DESCRIPTOR     STRUCT
+    union
+        Characteristics     DWORD ?
+        OriginalFirstThunk  DWORD ?
+    ends
+    TimeDateStamp           DWORD ?
+    ForwarderChain          DWORD ?
+    Name1                   DWORD ?
+    FirstThunk              DWORD ?
+IMAGE_IMPORT_DESCRIPTOR     ENDS
+ENDIF
+
+IFNDEF IMAGE_BASE_RELOCATION
+IMAGE_BASE_RELOCATION STRUCT
+    VirtualAddress dd   ?
+    SizeOfBlock dd      ?
+IMAGE_BASE_RELOCATION ENDS
+ENDIF
+
+IFNDEF IMAGE_IMPORT_BY_NAME
+IMAGE_IMPORT_BY_NAME STRUCT
+    Hint dw     ?
+    Name1 db    ?
+IMAGE_IMPORT_BY_NAME ENDS
+ENDIF
+
+IFNDEF IMAGE_RESOURCE_DIRECTORY
+IMAGE_RESOURCE_DIRECTORY STRUCT
+    Characteristics dd      ?
+    TimeDateStamp dd        ?
+    MajorVersion dw         ?
+    MinorVersion dw         ?
+    NumberOfNamedEntries dw ?
+    NumberOfIdEntries dw    ?
+IMAGE_RESOURCE_DIRECTORY ENDS
+ENDIF
+
+IFNDEF IMAGE_RESOURCE_DIRECTORY_ENTRY
+IMAGE_RESOURCE_DIRECTORY_ENTRY STRUCT
+    union
+        rName   RECORD NameIsString:1,NameOffset:31
+        Name1 dd ?
+        Id dw ?
+    ends
+    union
+        OffsetToData dd ?
+          rDirectory    RECORD DataIsDirectory:1,OffsetToDirectory:31
+    ends
+IMAGE_RESOURCE_DIRECTORY_ENTRY ENDS
+ENDIF
+
+IFNDEF IMAGE_RESOURCE_DIRECTORY_STRING
+IMAGE_RESOURCE_DIRECTORY_STRING STRUCT
+    Length1 dw      ?
+    NameString db   ?
+IMAGE_RESOURCE_DIRECTORY_STRING ENDS
+ENDIF
+
+IFNDEF IMAGE_RESOURCE_DIR_STRING_U
+IMAGE_RESOURCE_DIR_STRING_U STRUCT
+    Length1 dw      ?
+    NameString dw   ?
+IMAGE_RESOURCE_DIR_STRING_U ENDS
+ENDIF
+
+IFNDEF IMAGE_RESOURCE_DATA_ENTRY
+IMAGE_RESOURCE_DATA_ENTRY STRUCT
+    OffsetToData dd ?
+    Size1 dd        ?
+    CodePage dd     ?
+    Reserved dd     ?
+IMAGE_RESOURCE_DATA_ENTRY ENDS
 ENDIF
 
 IFNDEF IMAGE_DOS_HEADER
@@ -548,6 +632,35 @@ IMAGE_DIRECTORY_ENTRY_COM_DESCRIPTOR EQU 14 ; COM descriptor table
 IMAGE_DIRECTORY_ENTRY_RESERVED       EQU 15 ; Reserved
 
 IMAGE_NUMBEROF_DIRECTORY_ENTRIES     EQU 16
+
+
+; Resourece Directory Entry ID Types:
+RT_CURSOR           EQU  1 ; Hardware-dependent cursor resource.
+RT_BITMAP           EQU  2 ; Bitmap resource.
+RT_ICON             EQU  3 ; Hardware-dependent icon resource.
+RT_MENU             EQU  4 ; Menu resource.
+RT_DIALOG           EQU  5 ; Dialog box.
+RT_STRING           EQU  6 ; String-table entry.
+RT_FONTDIR          EQU  7 ; Font directory resource.
+RT_FONT             EQU  8 ; Font resource.
+RT_ACCELERATOR      EQU  9 ; Accelerator table.
+RT_RCDATA           EQU 10 ; Application-defined resource (raw data).
+RT_MESSAGETABLE     EQU 11 ; Message-table entry.
+RT_GROUP_CURSOR     EQU RT_CURSOR + 11 ; 12 - Hardware-independent cursor resource.
+RT_GROUP_ICON       EQU RT_ICON + 11 ; 14 - Hardware-independent icon resource.
+RT_VERSION          EQU 16 ; Version resource.
+RT_DLGINCLUDE       EQU 17 ; Allows a resource editing tool to associate a string with an .rc file.
+RT_PLUGPLAY         EQU 19 ; Plug and Play resource.
+RT_VXD              EQU 20 ; VXD.
+RT_ANICURSOR        EQU 21 ; Animated cursor.
+RT_ANIICON          EQU 22 ; Animated icon.
+RT_HTML             EQU 23 ; HTML resource.
+RT_MANIFEST         EQU 24 ; Side-by-Side Assembly Manifest.
+
+
+
+
+
 
 
 
