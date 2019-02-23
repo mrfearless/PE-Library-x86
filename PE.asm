@@ -413,6 +413,8 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
     LOCAL dwNumberOfRvaAndSizes:DWORD
     LOCAL dwCurrentSection:DWORD
     LOCAL bPE64:DWORD
+    LOCAL dwRVA:DWORD
+    LOCAL dwOffset:DWORD
     
     IFDEF DEBUG32
     PrintText 'PE_Analyze'
@@ -625,6 +627,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             mov ebx, pDataDirectories
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEExportDirectoryTable, eax
             .ENDIF
@@ -634,6 +637,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEImportDirectoryTable, eax
                 mov pImportDirectoryTable, eax
@@ -645,6 +649,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEResourceDirectoryTable, eax
             .ENDIF
@@ -656,6 +661,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEExceptionTable, eax
             .ENDIF
@@ -668,6 +674,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PECertificateTable, eax
             .ENDIF
@@ -681,6 +688,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEBaseRelocationTable, eax
             .ENDIF
@@ -695,6 +703,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEDebugData, eax
             .ENDIF
@@ -726,6 +735,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEGlobalPtr, eax
             .ENDIF
@@ -743,6 +753,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PETLSTable, eax
             .ENDIF
@@ -761,6 +772,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PELoadConfigTable, eax
             .ENDIF
@@ -780,6 +792,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEBoundImportTable, eax
             .ENDIF
@@ -800,6 +813,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEImportAddressTable, eax
             .ENDIF
@@ -821,6 +835,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PEDelayImportDescriptor, eax
             .ENDIF
@@ -843,6 +858,7 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
             add ebx, SIZEOF IMAGE_DATA_DIRECTORY
             mov eax, [ebx].IMAGE_DATA_DIRECTORY.VirtualAddress
             .IF eax != 0
+                Invoke PE_RVAToOffset, hPE, eax
                 add eax, PEMemMapPtr
                 mov [edx].PEINFO.PECLRRuntimeHeader, eax
             .ENDIF
@@ -884,12 +900,8 @@ PE_Analyze PROC USES EBX EDX pPEInMemory:DWORD, lpdwPEHandle:DWORD
         .ENDW
         mov edx, hPE
         mov [edx].PEINFO.PEImportDirectoryCount, eax 
-
     .ENDIF
-    
-    
-    
-    
+
     IFDEF DEBUG32
     mov eax, dwNumberOfSections
     mov ebx, SIZEOF IMAGE_SECTION_HEADER
@@ -1545,7 +1557,6 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 ; 
 ;----------------------------------------------------------------------------
-
 PE_ImportLookupTable PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD
     .IF hPE == NULL
         Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
@@ -1560,7 +1571,6 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 ; 
 ;----------------------------------------------------------------------------
-
 PE_ImportHintNameTable PROC USES EBX hPE:DWORD
     .IF hPE == NULL
         Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
@@ -1607,6 +1617,9 @@ PE_ALIGN
 ; PE_ImportDirectoryEntryDLL - return address of DLL string, or NULL
 ;----------------------------------------------------------------------------
 PE_ImportDirectoryEntryDLL PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL pImportDirectoryTable:DWORD
+    
     .IF hPE == NULL
         Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
@@ -1614,24 +1627,30 @@ PE_ImportDirectoryEntryDLL PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:
     .ENDIF
     Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
     mov eax, [ebx].PEINFO.PEImportDirectoryCount
     .IF dwImportDirectoryEntryIndex >= eax
         mov eax, 0
         ret
     .ENDIF
-    ; eax contains PEImportDirectoryCount
-    mov ebx, SIZEOF IMAGE_IMPORT_DESCRIPTOR
-    mul ebx
-    mov ebx, eax ; store in ebx
+    
     Invoke PE_ImportDirectoryTable, hPE
     .IF eax == 0
         ret
     .ENDIF
+    mov pImportDirectoryTable, eax
     
-    ; RVAToOffset
+    ; calc specific ImportDirectoryTable entry offset
+    mov eax, dwImportDirectoryEntryIndex
+    mov ebx, SIZEOF IMAGE_IMPORT_DESCRIPTOR
+    mul ebx
+    add eax, pImportDirectoryTable
+    mov ebx, eax ; offset to specific entry in ebx
     
-    add ebx, eax ; offset to specific entry in ebx 
     mov eax, [ebx].IMAGE_IMPORT_DESCRIPTOR.Name1
+    Invoke PE_RVAToOffset, hPE, eax
+    add eax, PEMemMapPtr
     ; eax has pointer to DLL name
     ret
 PE_ImportDirectoryEntryDLL ENDP
@@ -1936,6 +1955,9 @@ PE_RVAToOffset PROC USES EBX EDX hPE:DWORD, dwRVA:DWORD
     LOCAL nTotalSections:DWORD
     LOCAL nCurrentSection:DWORD
     LOCAL pCurrentSection:DWORD
+    LOCAL dwSectionSize:DWORD
+    LOCAL dwVirtualAddress:DWORD
+    LOCAL dwPointerToRawData:DWORD
     
     .IF hPE == NULL
         Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
@@ -1949,29 +1971,44 @@ PE_RVAToOffset PROC USES EBX EDX hPE:DWORD, dwRVA:DWORD
     mov nTotalSections, eax
     mov eax, [ebx].PEINFO.PESectionTable
     mov pCurrentSection, eax
-    mov ebx, eax
+
+    mov ebx, pCurrentSection
     mov edx, dwRVA
     mov eax, 0
     mov nCurrentSection, 0
     .WHILE eax < nTotalSections
+        mov eax, [ebx].IMAGE_SECTION_HEADER.Misc.VirtualSize
+        .IF eax == 0
+            mov eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
+        .ENDIF
+        mov dwSectionSize, eax
+    
         mov eax, [ebx].IMAGE_SECTION_HEADER.VirtualAddress
-        .IF edx >= eax 
-            add eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
-            .IF edx < eax ; The address is in this section
-                mov eax, [ebx].IMAGE_SECTION_HEADER.VirtualAddress
-                sub edx, eax
+        .IF eax <= edx
+            mov dwVirtualAddress, eax
+            add eax, dwSectionSize
+            .IF eax > edx
                 mov eax, [ebx].IMAGE_SECTION_HEADER.PointerToRawData
-                add eax, edx ; eax == file offset
+                mov dwPointerToRawData, eax
+                
+                mov ebx, dwVirtualAddress
+                mov eax, edx
+                sub eax, ebx
+                mov edx, eax
+                mov ebx, dwPointerToRawData
+                mov eax, edx
+                add eax, ebx
                 ret
             .ENDIF
         .ENDIF
-        
+
         add pCurrentSection, SIZEOF IMAGE_SECTION_HEADER
         mov ebx, pCurrentSection
         inc nCurrentSection
         mov eax, nCurrentSection
     .ENDW
-    mov eax, edx
+    
+    mov eax, dwRVA
     ret
 PE_RVAToOffset ENDP
 
@@ -1980,48 +2017,8 @@ PE_ALIGN
 ; PE_OffsetToRVA
 ;----------------------------------------------------------------------------
 PE_OffsetToRVA PROC USES EBX hPE:DWORD, dwOffset:DWORD
-    LOCAL nTotalSections:DWORD
-    LOCAL nCurrentSection:DWORD
-    LOCAL pCurrentSection:DWORD
-    
-    .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
-        xor eax, eax
-        ret
-    .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PESectionCount
-    mov nTotalSections, eax
-    mov eax, [ebx].PEINFO.PESectionTable
-    mov pCurrentSection, eax
-    mov ebx, eax
-    mov edx, dwOffset
-    mov eax, 0
-    mov nCurrentSection, 0
-    .WHILE eax < nTotalSections
-        mov eax, [ebx].IMAGE_SECTION_HEADER.PointerToRawData
-        .IF edx >= eax 
-            add eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
-            .IF edx < eax ; The address is in this section
-                mov eax, [ebx].IMAGE_SECTION_HEADER.PointerToRawData
-                sub edx, eax
-                mov eax, [ebx].IMAGE_SECTION_HEADER.VirtualAddress
-                add eax, edx ; eax == file offset
-                ret
-            .ENDIF
-        .ENDIF
-        
-        add pCurrentSection, SIZEOF IMAGE_SECTION_HEADER
-        mov ebx, pCurrentSection
-        inc nCurrentSection
-        mov eax, nCurrentSection
-    .ENDW
-    xor eax, eax
     ret
 PE_OffsetToRVA ENDP
-
 
 
 

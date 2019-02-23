@@ -21,7 +21,7 @@ includelib kernel32.lib
 include PE.inc
 includelib PE.lib
 
-CTEXT MACRO Text                        ; Macro for defining text in place 
+CTEXT MACRO Text                            ; Macro for defining text in place 
     LOCAL szText
     .DATA
     szText DB Text, 0
@@ -29,20 +29,56 @@ CTEXT MACRO Text                        ; Macro for defining text in place
     EXITM <Offset szText>
 ENDM
 
-Main                PROTO               ; Console Main procedure
-DoPEFile            PROTO               ; Do PE Tests
+Main                    PROTO               ; Console Main procedure
+DoPEFile                PROTO               ; Do PE Tests
 
-ConsoleStdOut       PROTO :DWORD        ; Print console text
-ConsoleClearScreen  PROTO               ; Clear console screen
-DwordToAscii        PROTO :DWORD,:DWORD ; Convert dword to ascii string
+ConsoleStdOut           PROTO :DWORD        ; Print console text
+ConsoleClearScreen      PROTO               ; Clear console screen
+DwordToAscii            PROTO :DWORD,:DWORD ; Convert dword to ascii string
 
 .DATA
-szCRLF              DB 13,10,0          ; Carriage Return and Line Feed
-szTest              DB '.\PETest.exe',0 ; Ourself
-szValueBuffer       DB 16 DUP (0)       ; Buffer for DwordToAscii
+szCRLF                  DB 13,10,0          ; Carriage Return and Line Feed
+szTest                  DB '.\PETest.exe',0 ; Ourself
+szValueBuffer           DB 16 DUP (0)       ; Buffer for DwordToAscii
+
+; PE Info:
+pHeaderDOS              DD 0
+pHeaderNT               DD 0
+pHeaderFile             DD 0
+pHeaderOptional         DD 0
+pHeaderSections         DD 0
+pImportDirectoryTable   DD 0
+
+dwImportDirectoryCount  DD 0
+dwSectionCount          DD 0    
+dwMachine               DD 0
+dwCharacteristics       DD 0
+dwLinkerVersion         DD 0
+dwMajorLinkerVersion    DD 0
+dwMinorLinkerVersion    DD 0
+dwAddressOfEntryPoint   DD 0
+dwImageBase             DD 0
+qwImageBase             DD 0
+dwSizeOfImage           DD 0
+dwCheckSum              DD 0
+dwSubsystem             DD 0
+dwDllCharacteristics    DD 0
+
+bPEDLL                  DD 0
+bPE64                   DD 0
+
+nSectionEntry           DD 0
+pCurrentSectionEntry    DD 0
+nImportDirectoryEntry   DD 0
+pCurrentImportDirectoryEntry DD 0
+
+
+
+
+
 
 .DATA?
-hPE                 DD ?                ; PE Handle 
+hPE                     DD ? ; PE Handle 
 
 .CODE
 
@@ -66,26 +102,7 @@ Main ENDP
 ;------------------------------------------------------------------------------
 DoPEFile PROC
     LOCAL dwErrorNo:DWORD
-    LOCAL pHeaderDOS:DWORD
-    LOCAL pHeaderNT:DWORD
-    LOCAL pHeaderFile:DWORD
-    LOCAL pHeaderOptional:DWORD
-    LOCAL pHeaderSections:DWORD
-    LOCAL dwSectionCount:DWORD    
-    LOCAL dwMachine:DWORD
-    LOCAL dwCharacteristics:DWORD
-    LOCAL dwLinkerVersion:DWORD
-    LOCAL dwMajorLinkerVersion:DWORD
-    LOCAL dwMinorLinkerVersion:DWORD
-    LOCAL dwAddressOfEntryPoint:DWORD
-    LOCAL dwImageBase:DWORD
-    LOCAL qwImageBase:QWORD
-    LOCAL dwSizeOfImage:DWORD
-    LOCAL dwCheckSum:DWORD
-    LOCAL dwSubsystem:DWORD
-    LOCAL dwDllCharacteristics:DWORD
-    LOCAL bPEDLL:DWORD
-    LOCAL bPE64:DWORD
+
 
     ;--------------------------------------------------------------------------
     ; Open PE file (ourself: PEText.exe)
@@ -119,6 +136,10 @@ DoPEFile PROC
     mov pHeaderSections, eax
     Invoke PE_SectionHeaderCount, hPE
     mov dwSectionCount, eax
+    Invoke PE_ImportDirectoryTable, hPE
+    mov pImportDirectoryTable, eax
+    Invoke PE_ImportDirectoryEntryCount, hPE
+    mov dwImportDirectoryCount, eax
 
     IFDEF DEBUG32
         PrintDec hPE
@@ -203,11 +224,11 @@ DoPEFile PROC
     Invoke ConsoleStdOut, Addr szValueBuffer
     Invoke ConsoleStdOut, Addr szCRLF
     
-    Invoke ConsoleStdOut, CTEXT("No of sections: ")
-    Invoke DwordToAscii, dwSectionCount, Addr szValueBuffer
+    Invoke ConsoleStdOut, CTEXT("pImportDirectoryTable: ")
+    Invoke DwordToAscii, pImportDirectoryTable, Addr szValueBuffer
     Invoke ConsoleStdOut, Addr szValueBuffer
     Invoke ConsoleStdOut, Addr szCRLF
-    
+
     Invoke ConsoleStdOut, Addr szCRLF
     
     ; Information
@@ -271,6 +292,55 @@ DoPEFile PROC
     Invoke DwordToAscii, dwDllCharacteristics, Addr szValueBuffer
     Invoke ConsoleStdOut, Addr szValueBuffer
     Invoke ConsoleStdOut, Addr szCRLF
+    
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    ; Sections
+    Invoke ConsoleStdOut, CTEXT("No of sections: ")
+    Invoke DwordToAscii, dwSectionCount, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    Invoke ConsoleStdOut, CTEXT("Sections: ")
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    mov ebx, pHeaderSections
+    mov pCurrentSectionEntry, ebx
+    mov eax, 0
+    mov nSectionEntry, 0
+    .WHILE eax < dwSectionCount
+        Invoke ConsoleStdOut, CTEXT("- ")
+        lea eax, [ebx].IMAGE_SECTION_HEADER.Name1
+        Invoke ConsoleStdOut, eax
+        Invoke ConsoleStdOut, Addr szCRLF
+        add pCurrentSectionEntry, SIZEOF IMAGE_SECTION_HEADER
+        mov ebx, pCurrentSectionEntry
+        inc nSectionEntry
+        mov eax, nSectionEntry
+    .ENDW
+
+    Invoke ConsoleStdOut, Addr szCRLF
+    
+    ; import directory entries
+    Invoke ConsoleStdOut, CTEXT("No of import directory entries: ")
+    Invoke DwordToAscii, dwImportDirectoryCount, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szValueBuffer
+    Invoke ConsoleStdOut, Addr szCRLF        
+    
+    Invoke ConsoleStdOut, CTEXT("Import DLL's: ")
+    Invoke ConsoleStdOut, Addr szCRLF
+
+    mov eax, 0
+    mov nImportDirectoryEntry, 0
+    .WHILE eax < dwImportDirectoryCount
+        Invoke ConsoleStdOut, CTEXT("- ")
+        Invoke PE_ImportDirectoryEntryDLL, hPE, nImportDirectoryEntry
+        Invoke ConsoleStdOut, eax
+        Invoke ConsoleStdOut, Addr szCRLF
+        inc nImportDirectoryEntry
+        mov eax, nImportDirectoryEntry        
+    .ENDW
+
 
     ;--------------------------------------------------------------------------
     ; Close PE file. hPE will be set to NULL automatically
