@@ -61,7 +61,9 @@ PE_SectionHeaderByIndex     PROTO :DWORD,:DWORD                     ; hPE, dwSec
 PE_SectionHeaderByName      PROTO :DWORD,:DWORD                     ; hPE, lpszSectionName
 PE_SectionHeaderByType      PROTO :DWORD,:DWORD                     ; hPE, dwSectionType
 PE_SectionHeaderByAddr      PROTO :DWORD,:DWORD                     ; hPE, dwAddress
+PE_SectionName              PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
 
+; Section Manipulate Functions: (WIP - NOT FINISHED - DONT USE)
 PE_SectionAdd               PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics
 PE_SectionDelete            PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpszSectionName, dwSectionIndex
 PE_SectionInsert            PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics, dwSectionIndex
@@ -69,7 +71,7 @@ PE_SectionMove              PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszS
 
 ; Import Functions
 PE_ImportDirectoryTable     PROTO :DWORD                            ; hPE
-PE_ImportLookupTable        PROTO :DWORD,:DWORD                     ; hPE, dwImportDirectoryEntryIndex
+PE_ImportLookupTable        PROTO :DWORD,:DWORD,:DWORD              ; hPE, dwImportDirectoryEntryIndex, lpdwImportCount
 PE_ImportHintNameTable      PROTO :DWORD                            ; hPE
 PE_ImportAddressTable       PROTO :DWORD                            ; hPE
 PE_ImportDirectoryEntryCount PROTO :DWORD                           ; hPE

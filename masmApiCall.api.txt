@@ -23,6 +23,7 @@ PE_SectionHeaderByIndex,hPE,dwSectionIndex
 PE_SectionHeaderByName,hPE,lpszSectionName
 PE_SectionHeaderByType,hPE,dwSectionType
 PE_SectionHeaderByAddr,hPE,dwAddress
+PE_SectionName,hPE,dwSectionIndex
 
 PE_SectionAdd,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics
 PE_SectionDelete,hPE,lpszSectionName,dwSectionIndex
@@ -31,7 +32,7 @@ PE_SectionMove,hPE,lpszSectionName,dwSectionIndex,lpszSectionNameToMoveTo,dwSect
 
 ; Import Functions
 PE_ImportDirectoryTable,hPE
-PE_ImportLookupTable,hPE,dwImportDirectoryEntryIndex
+PE_ImportLookupTable,hPE,dwImportDirectoryEntryIndex,lpdwImportCount
 PE_ImportHintNameTable,hPE
 PE_ImportAddressTable,hPE
 PE_ImportDirectoryEntryCount,hPE

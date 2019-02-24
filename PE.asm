@@ -972,11 +972,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderDOS PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEDOSHeader
     ; eax points to IMAGE_DOS_HEADER
@@ -989,11 +987,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderNT PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PENTHeader
     ; eax points to IMAGE_NT_HEADERS
@@ -1006,11 +1002,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderFile PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEFileHeader
     ; eax points to IMAGE_FILE_HEADER
@@ -1023,11 +1017,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderOptional PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEOptionalHeader
     ; eax points to IMAGE_OPTIONAL_HEADER (32/64)
@@ -1040,11 +1032,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_HeaderSections PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PESectionTable
     ; eax points to array of IMAGE_SECTION_HEADER entries
@@ -1064,11 +1054,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_SectionsHeaders PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PESectionTable
     ; eax points to array of IMAGE_SECTION_HEADER entries
@@ -1081,11 +1069,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_SectionHeaderCount PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PESectionCount
     ret
@@ -1094,13 +1080,12 @@ PE_SectionHeaderCount ENDP
 PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_SectionHeaderByIndex - Get section specified by dwSectionIndex
-; Returns: pointer to section or NULL
+; Returns: pointer to section IMAGE_SECTION_HEADER or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByIndex PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
     LOCAL pHeaderSections:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF    
@@ -1122,20 +1107,18 @@ PE_SectionHeaderByIndex PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
     .ENDIF
     mov pHeaderSections, eax
     
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     mov eax, dwSectionIndex
     mov ebx, SIZEOF IMAGE_SECTION_HEADER
     mul ebx
     add eax, pHeaderSections
-
+    
     ret
 PE_SectionHeaderByIndex ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_SectionHeaderByName - Get section specified by lpszSectionName
-; Returns: pointer to section or NULL
+; Returns: pointer to section IMAGE_SECTION_HEADER or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
     LOCAL pHeaderSections:DWORD
@@ -1144,7 +1127,6 @@ PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
     LOCAL nSection:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1170,7 +1152,6 @@ PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
             lea ebx, [ebx].IMAGE_SECTION_HEADER.Name1
             Invoke lstrcmp, ebx, lpszSectionName
             .IF eax == 0 ; match
-                Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
                 mov eax, pCurrentSection
                 ret
             .ENDIF
@@ -1180,7 +1161,6 @@ PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
         inc nSection
         mov eax, nSection
     .ENDW
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     
     xor eax, eax
     ret
@@ -1189,7 +1169,7 @@ PE_SectionHeaderByName ENDP
 PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_SectionHeaderByType - Get section specified by dwSectionType
-; Returns: pointer to section or NULL
+; Returns: pointer to section IMAGE_SECTION_HEADER or NULL
 ;----------------------------------------------------------------------------
 PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     LOCAL pHeaderSections:DWORD
@@ -1198,7 +1178,6 @@ PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     LOCAL nSection:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF    
@@ -1214,9 +1193,7 @@ PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     .ENDIF
     mov pHeaderSections, eax
     mov pCurrentSection, eax
-
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-
+    
     Invoke PE_SectionHeaderCount, hPE
     mov ebx, pCurrentSection
     mov nSections, eax
@@ -1342,20 +1319,75 @@ PE_SectionHeaderByType ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_SectionHeaderByAddr - Get section that has dwAddress
-; Returns: pointer to section or NULL
+; PE_SectionHeaderByAddr - Get section that has RVA of dwAddress
+; Returns: pointer to section IMAGE_SECTION_HEADER or NULL
 ;----------------------------------------------------------------------------
-PE_SectionHeaderByAddr PROC USES EBX hPE:DWORD, dwAddress:DWORD
+PE_SectionHeaderByAddr PROC USES EBX EDX hPE:DWORD, dwAddress:DWORD
+    LOCAL nTotalSections:DWORD
+    LOCAL nCurrentSection:DWORD
+    LOCAL pCurrentSection:DWORD
+    LOCAL dwSectionSize:DWORD
+    
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PESectionCount
+    mov nTotalSections, eax
+    mov eax, [ebx].PEINFO.PESectionTable
+    mov pCurrentSection, eax
+
+    mov ebx, pCurrentSection
+    mov edx, dwAddress
+    mov eax, 0
+    mov nCurrentSection, 0
+    .WHILE eax < nTotalSections
+        mov eax, [ebx].IMAGE_SECTION_HEADER.Misc.VirtualSize
+        .IF eax == 0
+            mov eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
+        .ENDIF
+        mov dwSectionSize, eax
+    
+        mov eax, [ebx].IMAGE_SECTION_HEADER.VirtualAddress
+        .IF eax <= edx
+            add eax, dwSectionSize
+            .IF eax > edx
+                mov eax, pCurrentSection
+                ret
+            .ENDIF
+        .ENDIF
+
+        add pCurrentSection, SIZEOF IMAGE_SECTION_HEADER
+        mov ebx, pCurrentSection
+        inc nCurrentSection
+        mov eax, nCurrentSection
+    .ENDW
     
     xor eax, eax
     ret
 PE_SectionHeaderByAddr ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionName - Get section name for specified section (dwSectionIndex)
+; Returns: pointer to section name or NULL
+;----------------------------------------------------------------------------
+PE_SectionName PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SectionHeaderByIndex, hPE, dwSectionIndex
+    .IF eax == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, eax
+    lea ebx, [ebx].IMAGE_SECTION_HEADER.Name1
+    ret
+PE_SectionName ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
@@ -1371,7 +1403,6 @@ PE_SectionAdd PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:DWOR
     LOCAL dwNewFileSize:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1417,7 +1448,6 @@ PE_SectionDelete PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:
     LOCAL nSection:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1471,7 +1501,6 @@ PE_SectionInsert PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionSize:D
     LOCAL dwNewFileSize:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1502,7 +1531,6 @@ PE_SectionMove PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, dwSectionIndex:DW
     LOCAL nSectionTo:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
@@ -1539,15 +1567,14 @@ PE_SectionMove ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; 
+; PE_ImportDirectoryTable - Get pointer to ImportDirectoryTable
+; Returns: pointer to ImportDirectoryTable or NULL
 ;----------------------------------------------------------------------------
 PE_ImportDirectoryTable PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEImportDirectoryTable
     ret
@@ -1555,15 +1582,58 @@ PE_ImportDirectoryTable ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; 
+; PE_ImportLookupTable - Get pointer to Import Lookup Table (array of DWORDs) 
+; for the specified ImportDirectoryTable entry (dwImportDirectoryEntryIndex)
+; Returns: pointer to Import Lookup Table, or NULL
 ;----------------------------------------------------------------------------
-PE_ImportLookupTable PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD
+PE_ImportLookupTable PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD, lpdwImportCount:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL pImportDirectoryTable:DWORD
+    LOCAL pImportLookupTable:DWORD
+    
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    mov eax, [ebx].PEINFO.PEImportDirectoryCount
+    .IF dwImportDirectoryEntryIndex >= eax
+        mov eax, 0
+        ret
+    .ENDIF
+    
+    Invoke PE_ImportDirectoryTable, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    mov pImportDirectoryTable, eax
+
+    ; calc specific ImportDirectoryTable entry offset
+    mov eax, dwImportDirectoryEntryIndex
+    mov ebx, SIZEOF IMAGE_IMPORT_DESCRIPTOR
+    mul ebx
+    add eax, pImportDirectoryTable
+    mov ebx, eax ; offset to specific entry in ebx
+    
+    mov eax, [ebx].IMAGE_IMPORT_DESCRIPTOR.Characteristics
+    Invoke PE_RVAToOffset, hPE, eax
+    add eax, PEMemMapPtr ; eax has pointer to Import Lookup Table for this DLL entry
+    mov pImportLookupTable, eax
+
+    .IF lpdwImportCount != NULL ; loop and count how many functions exported
+        mov eax, 0
+        mov ebx, pImportLookupTable
+        .WHILE dword ptr [ebx] != 0
+            inc eax
+            add ebx, SIZEOF DWORD ; array of DWORDS each pointing to an IMAGE_IMPORT_BY_NAME structure
+        .ENDW
+        mov ebx, lpdwImportCount
+        mov [ebx], eax
+    .ENDIF
+    
+    mov eax, pImportLookupTable
     ret
 PE_ImportLookupTable ENDP
 
@@ -1573,11 +1643,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_ImportHintNameTable PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     ret
 PE_ImportHintNameTable ENDP
 
@@ -1585,28 +1653,24 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 ; 
 ;----------------------------------------------------------------------------
-
 PE_ImportAddressTable PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     ret
 PE_ImportAddressTable ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; 
+; PE_ImportDirectoryEntryCount - Get count of ImportDirectoryTable entries
+; Returns: count of ImportDirectoryTable entries or 0
 ;----------------------------------------------------------------------------
 PE_ImportDirectoryEntryCount PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEImportDirectoryCount
     ret
@@ -1614,18 +1678,18 @@ PE_ImportDirectoryEntryCount ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_ImportDirectoryEntryDLL - return address of DLL string, or NULL
+; PE_ImportDirectoryEntryDLL - Get DLL name for specified ImportDirectoryTable 
+; Entry (dwImportDirectoryEntryIndex)
+; Returns: address of zero terminated DLL name string, or NULL
 ;----------------------------------------------------------------------------
 PE_ImportDirectoryEntryDLL PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD
     LOCAL PEMemMapPtr:DWORD
     LOCAL pImportDirectoryTable:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEMemMapPtr
     mov PEMemMapPtr, eax
@@ -1669,12 +1733,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Machine PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderFile, hPE
     mov ebx, eax
     movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Machine
@@ -1687,12 +1748,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Characteristics PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderFile, hPE
     mov ebx, eax
     movzx eax, word ptr [ebx].IMAGE_FILE_HEADER.Characteristics
@@ -1705,12 +1763,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_LinkerVersion PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
@@ -1735,12 +1790,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_AddressOfEntryPoint PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
@@ -1759,12 +1811,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_ImageBase PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PE64
     .IF eax == TRUE
@@ -1783,12 +1832,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_SizeOfImage PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
@@ -1807,12 +1853,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_CheckSum PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
@@ -1831,12 +1874,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Subsystem PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
@@ -1855,12 +1895,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_DllCharacteristics PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
-    
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
@@ -1880,11 +1917,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_IsDll PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEDLL
     ret
@@ -1896,11 +1931,9 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 PE_Is64 PROC USES EBX hPE:DWORD
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PE64
     ret
@@ -1949,7 +1982,7 @@ PE_GetError ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_RVAToOffset
+; PE_RVAToOffset - convert Relative Virtual Address (RVA) to file offset
 ;----------------------------------------------------------------------------
 PE_RVAToOffset PROC USES EBX EDX hPE:DWORD, dwRVA:DWORD
     LOCAL nTotalSections:DWORD
@@ -1960,11 +1993,9 @@ PE_RVAToOffset PROC USES EBX EDX hPE:DWORD, dwRVA:DWORD
     LOCAL dwPointerToRawData:DWORD
     
     .IF hPE == NULL
-        Invoke PE_SetError, NULL, PE_ERROR_NO_HANDLE
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_SetError, NULL, PE_ERROR_SUCCESS
     
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PESectionCount
@@ -2014,9 +2045,58 @@ PE_RVAToOffset ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_OffsetToRVA
+; PE_OffsetToRVA - convert file offset to Relative Virtual Address (RVA) 
 ;----------------------------------------------------------------------------
 PE_OffsetToRVA PROC USES EBX hPE:DWORD, dwOffset:DWORD
+    LOCAL nTotalSections:DWORD
+    LOCAL nCurrentSection:DWORD
+    LOCAL pCurrentSection:DWORD
+    LOCAL dwVirtualAddress:DWORD
+    LOCAL dwPointerToRawData:DWORD
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PESectionCount
+    mov nTotalSections, eax
+    mov eax, [ebx].PEINFO.PESectionTable
+    mov pCurrentSection, eax
+
+    mov ebx, pCurrentSection
+    mov edx, dwOffset
+    mov eax, 0
+    mov nCurrentSection, 0
+    .WHILE eax < nTotalSections
+        mov eax, [ebx].IMAGE_SECTION_HEADER.PointerToRawData
+        .IF eax <= edx
+            mov dwPointerToRawData, eax
+            mov eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
+            add eax, dwPointerToRawData
+            .IF eax > edx
+                mov eax, [ebx].IMAGE_SECTION_HEADER.VirtualAddress
+                mov dwVirtualAddress, eax
+                
+                mov ebx, dwPointerToRawData
+                mov eax, edx
+                sub eax, ebx
+                mov edx, eax
+                mov ebx, dwVirtualAddress
+                mov eax, edx
+                add eax, ebx
+                ret
+            .ENDIF
+        .ENDIF
+
+        add pCurrentSection, SIZEOF IMAGE_SECTION_HEADER
+        mov ebx, pCurrentSection
+        inc nCurrentSection
+        mov eax, nCurrentSection
+    .ENDW
+    
+    xor eax, eax
     ret
 PE_OffsetToRVA ENDP
 

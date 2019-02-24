@@ -52,7 +52,7 @@ AutoLoad=1,3
 1=
 [Size]
 2=0,0,0,0,0
-1=0,0,0,0,10753
+1=0,0,0,0,10770
 3=0,0,0,0,0
 [VerInf]
 Nme=VERINF1
@@ -108,7 +108,7 @@ ProductVer2Range=0
 ProductVer3Range=0
 ProductVer4Range=0
 [PTimer]
-PTimer=3612500
+PTimer=3703542
 [Collapse]
 1=519
 2=
