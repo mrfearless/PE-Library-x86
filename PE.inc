@@ -83,6 +83,8 @@ PE_ImportDirectoryEntryDLL  PROTO :DWORD,:DWORD                     ; hPE, dwImp
 ; in various PE structures. Others can be read by obtaining the pointer to the
 ; relevant PE structure and reading the required field(s) directly.
 ;------------------------------------------------------------------------------
+PE_RichSignature            PROTO :DWORD                            ; hPE
+PE_RichSignatureDecode      PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpDecodedRichSignature, lpdwSize
 PE_Machine                  PROTO :DWORD                            ; hPE
 PE_Characteristics          PROTO :DWORD                            ; hPE
 PE_LinkerVersion            PROTO :DWORD                            ; hPE

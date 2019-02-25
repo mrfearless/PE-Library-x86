@@ -1729,6 +1729,148 @@ PE_ImportDirectoryEntryDLL ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
+; PE_RichSignature - returns pointer to rich signature in PE file or NULL
+;----------------------------------------------------------------------------
+PE_RichSignature PROC USES EBX hPE:DWORD
+    LOCAL pRichSignature:DWORD
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_HeaderDOS, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    add eax, 80h ; 128
+    mov pRichSignature, eax
+    ; Double check NT header is greater than rich sig position
+    Invoke PE_HeaderNT, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    .IF eax > pRichSignature
+        mov eax, pRichSignature
+    .ELSE
+        mov eax, 0
+    .ENDIF
+    ret
+PE_RichSignature ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_RichSignatureDecode - Decodes rich signature and returns a block of 
+; memory, pointed to by the lpDecodedRichSignature parameter. lpdwSize var
+; will contains size of decoded block on succesful return. Use GlobalFree
+; once you have done with the decoded block.
+; 
+; Code adapted from Daniel Pistelli: https://ntcore.com/files/richsign.htm
+;
+; Returns: TRUE or FALSE
+;----------------------------------------------------------------------------
+PE_RichSignatureDecode PROC USES EBX EDX hPE:DWORD, lpDecodedRichSignature:DWORD, lpdwSize:DWORD
+    LOCAL pRichSignature:DWORD
+    LOCAL pRSEntry:DWORD
+    LOCAL pRSNewData:DWORD
+    LOCAL pRSNewEntry:DWORD
+    LOCAL nSignDwords:DWORD
+    LOCAL i:DWORD
+    LOCAL dwMask:DWORD
+    LOCAL dwSize:DWORD
+    
+    .IF lpDecodedRichSignature == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    Invoke PE_RichSignature, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    mov pRichSignature, eax
+    mov ebx, eax
+    
+    ; Loop through rich signature location
+    ; count no of dwords till we hit max no
+    ; or null, or 'Rich'.
+    mov nSignDwords, 0
+    mov i, 0
+    mov eax, 0
+    .WHILE eax < 100
+        mov eax, [ebx]
+        .IF eax == 68636952h ; Rich
+            mov eax, i
+            mov nSignDwords, eax
+            .BREAK
+        .ELSEIF eax == 0 ; Null
+            .BREAK
+        .ENDIF
+        
+        add ebx, SIZEOF DWORD
+        inc i
+        mov eax, i
+    .ENDW
+    
+    ; Check if we got anything
+    .IF nSignDwords == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    ; read xor mask
+    mov eax, dword ptr [ebx+4]
+    mov dwMask, eax
+    
+    ; alloc memory for decrypted block
+    mov eax, nSignDwords
+    inc eax
+    mov ebx, SIZEOF DWORD
+    mul ebx
+    mov dwSize, eax
+    Invoke GlobalAlloc, GMEM_FIXED or GMEM_ZEROINIT, dwSize
+    mov pRSNewData, eax
+    mov pRSNewEntry, eax
+    mov edx, pRSNewEntry
+    
+    ; decrypt signature
+    mov ebx, pRichSignature
+    mov pRSEntry, ebx
+    mov i, 0
+    mov eax, 0
+    .WHILE eax < nSignDwords    
+        mov eax, [ebx]      ; read pRSEntry DWORD
+        mov ebx, dwMask
+        xor eax, ebx        ; decrypt (xor) with mask
+        mov [edx], eax      ; store DWORD in pRSNewEntry
+        
+        add pRSNewEntry, SIZEOF DWORD
+        add pRSEntry, SIZEOF DWORD
+        mov ebx, pRSEntry
+        mov edx, pRSNewEntry
+        inc i
+        mov eax, i
+    .ENDW
+    
+    ; write new mask for decrypted signature
+    mov dword ptr [edx+4], 0FFFFFFFFh
+    
+    ; return decrypted block and size
+    mov ebx, lpDecodedRichSignature
+    mov eax, pRSNewData
+    mov [ebx], eax
+    
+    .IF lpdwSize != NULL
+        mov ebx, lpdwSize
+        mov eax, dwSize
+        mov [ebx], eax
+    .ENDIF 
+
+    mov eax, TRUE
+    ret
+PE_RichSignatureDecode ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
 ; PE_Machine - returns machine id in eax
 ;----------------------------------------------------------------------------
 PE_Machine PROC USES EBX hPE:DWORD
