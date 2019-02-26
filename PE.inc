@@ -53,6 +53,7 @@ PE_HeaderNT                 PROTO :DWORD                            ; hPE
 PE_HeaderFile               PROTO :DWORD                            ; hPE
 PE_HeaderOptional           PROTO :DWORD                            ; hPE
 PE_HeaderSections           PROTO :DWORD                            ; hPE
+PE_HeaderRich               PROTO :DWORD                            ; hPE
 
 ; Section Functions:
 PE_SectionHeaderCount       PROTO :DWORD                            ; hPE
@@ -83,8 +84,8 @@ PE_ImportDirectoryEntryDLL  PROTO :DWORD,:DWORD                     ; hPE, dwImp
 ; in various PE structures. Others can be read by obtaining the pointer to the
 ; relevant PE structure and reading the required field(s) directly.
 ;------------------------------------------------------------------------------
-PE_RichSignature            PROTO :DWORD                            ; hPE
-PE_RichSignatureDecode      PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpDecodedRichSignature, lpdwSize
+
+PE_RichSignatureDecode      PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpdwDecodedRichSignature, lpdwSize
 PE_Machine                  PROTO :DWORD                            ; hPE
 PE_Characteristics          PROTO :DWORD                            ; hPE
 PE_LinkerVersion            PROTO :DWORD                            ; hPE
@@ -96,6 +97,7 @@ PE_Subsystem                PROTO :DWORD                            ; hPE
 PE_DllCharacteristics       PROTO :DWORD                            ; hPE
 PE_IsDll                    PROTO :DWORD                            ; hPE
 PE_Is64                     PROTO :DWORD                            ; hPE
+PE_Hash                     PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, dwHashType, lpHashBytes, lpdwHashSize
 
 ; Helper Functions:
 PE_RVAToOffset              PROTO :DWORD,:DWORD                     ; hPE, dwRVA
@@ -107,6 +109,14 @@ PE_OffsetToRVA              PROTO :DWORD,:DWORD                     ; hPE, dwOff
 ;------------------------------------------------------------------------------
 ; PE Structures
 ;------------------------------------------------------------------------------
+IFNDEF RICH_SIGNATURE_ENTRY
+RICH_SIGNATURE_ENTRY STRUC
+    ID               DW ?
+    Build            DW ?
+    Count            DD ?
+RICH_SIGNATURE_ENTRY ENDS
+ENDIF
+
 IFNDEF IMAGE_DATA_DIRECTORY
 IMAGE_DATA_DIRECTORY STRUCT
     VirtualAddress   DWORD ?

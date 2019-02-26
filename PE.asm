@@ -1041,6 +1041,71 @@ PE_HeaderSections PROC USES EBX hPE:DWORD
     ret
 PE_HeaderSections ENDP
 
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_HeaderRich - returns pointer to rich signature in PE file or NULL
+; http://bytepointer.com/articles/the_microsoft_rich_header.htm
+;----------------------------------------------------------------------------
+PE_HeaderRich PROC USES EBX ECX hPE:DWORD
+    LOCAL pRichSignature:DWORD
+    LOCAL bFoundRich:DWORD
+    LOCAL dwEndAddress:DWORD
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_HeaderDOS, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    add eax, 80h ; 128
+    mov pRichSignature, eax
+    
+    ; Double check NT header is greater than rich sig position
+    Invoke PE_HeaderNT, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    .IF pRichSignature >= eax
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    ; Get address of PE in memory + filesize for max address
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    add eax, [ebx].PEINFO.PEFilesize
+    mov dwEndAddress, eax
+    
+    ; Check for presence of 'Rich'
+    mov bFoundRich, FALSE
+    mov ecx, 0
+    mov ebx, pRichSignature
+    mov eax, 0
+    .WHILE eax < 100 && ebx < dwEndAddress
+        mov eax, [ebx]
+        .IF eax == 68636952h ; Rich
+            mov bFoundRich, TRUE
+            .BREAK
+        .ELSEIF eax == 0 ; Null
+            .BREAK
+        .ENDIF
+        
+        add ebx, SIZEOF DWORD
+        inc ecx
+        mov eax, ecx
+    .ENDW
+    
+    ; Check if we found 'Rich'
+    .IF bFoundRich == FALSE
+        xor eax, eax
+        ret
+    .ENDIF    
+    
+    mov eax, pRichSignature
+    ret
+PE_HeaderRich ENDP
 
 
 
@@ -1729,77 +1794,56 @@ PE_ImportDirectoryEntryDLL ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_RichSignature - returns pointer to rich signature in PE file or NULL
-;----------------------------------------------------------------------------
-PE_RichSignature PROC USES EBX hPE:DWORD
-    LOCAL pRichSignature:DWORD
-    
-    .IF hPE == NULL
-        xor eax, eax
-        ret
-    .ENDIF
-    Invoke PE_HeaderDOS, hPE
-    .IF eax == 0
-        ret
-    .ENDIF
-    add eax, 80h ; 128
-    mov pRichSignature, eax
-    ; Double check NT header is greater than rich sig position
-    Invoke PE_HeaderNT, hPE
-    .IF eax == 0
-        ret
-    .ENDIF
-    .IF eax > pRichSignature
-        mov eax, pRichSignature
-    .ELSE
-        mov eax, 0
-    .ENDIF
-    ret
-PE_RichSignature ENDP
-
-PE_ALIGN
-;----------------------------------------------------------------------------
 ; PE_RichSignatureDecode - Decodes rich signature and returns a block of 
 ; memory, pointed to by the lpDecodedRichSignature parameter. lpdwSize var
 ; will contains size of decoded block on succesful return. Use GlobalFree
 ; once you have done with the decoded block.
-; 
+;
+; lpDecodedRichSignature can be null if you want to just return size of rich
+; signature in lpdwSize
+;
 ; Code adapted from Daniel Pistelli: https://ntcore.com/files/richsign.htm
 ;
 ; Returns: TRUE or FALSE
 ;----------------------------------------------------------------------------
-PE_RichSignatureDecode PROC USES EBX EDX hPE:DWORD, lpDecodedRichSignature:DWORD, lpdwSize:DWORD
+PE_RichSignatureDecode PROC USES EBX ECX EDX hPE:DWORD, lpdwDecodedRichSignature:DWORD, lpdwSize:DWORD
     LOCAL pRichSignature:DWORD
     LOCAL pRSEntry:DWORD
     LOCAL pRSNewData:DWORD
     LOCAL pRSNewEntry:DWORD
     LOCAL nSignDwords:DWORD
-    LOCAL i:DWORD
     LOCAL dwMask:DWORD
     LOCAL dwSize:DWORD
+    LOCAL dwEndAddress:DWORD
     
-    .IF lpDecodedRichSignature == 0
+    .IF lpdwDecodedRichSignature == 0 && lpdwSize == 0
         xor eax, eax
         ret
     .ENDIF
     
-    Invoke PE_RichSignature, hPE
+    Invoke PE_HeaderRich, hPE
     .IF eax == 0
         ret
     .ENDIF
     mov pRichSignature, eax
-    mov ebx, eax
+
+    ; Get address of PE in memory + filesize for max address
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    add eax, [ebx].PEINFO.PEFilesize
+    mov dwEndAddress, eax    
     
     ; Loop through rich signature location
     ; count no of dwords till we hit max no
     ; or null, or 'Rich'.
+    mov ebx, pRichSignature
     mov nSignDwords, 0
-    mov i, 0
+    mov ecx, 0
     mov eax, 0
-    .WHILE eax < 100
+    .WHILE eax < 100 && ebx < dwEndAddress
         mov eax, [ebx]
         .IF eax == 68636952h ; Rich
-            mov eax, i
+            mov eax, ecx
             mov nSignDwords, eax
             .BREAK
         .ELSEIF eax == 0 ; Null
@@ -1807,8 +1851,8 @@ PE_RichSignatureDecode PROC USES EBX EDX hPE:DWORD, lpDecodedRichSignature:DWORD
         .ENDIF
         
         add ebx, SIZEOF DWORD
-        inc i
-        mov eax, i
+        inc ecx
+        mov eax, ecx
     .ENDW
     
     ; Check if we got anything
@@ -1827,37 +1871,40 @@ PE_RichSignatureDecode PROC USES EBX EDX hPE:DWORD, lpDecodedRichSignature:DWORD
     mov ebx, SIZEOF DWORD
     mul ebx
     mov dwSize, eax
-    Invoke GlobalAlloc, GMEM_FIXED or GMEM_ZEROINIT, dwSize
-    mov pRSNewData, eax
-    mov pRSNewEntry, eax
-    mov edx, pRSNewEntry
     
-    ; decrypt signature
-    mov ebx, pRichSignature
-    mov pRSEntry, ebx
-    mov i, 0
-    mov eax, 0
-    .WHILE eax < nSignDwords    
-        mov eax, [ebx]      ; read pRSEntry DWORD
-        mov ebx, dwMask
-        xor eax, ebx        ; decrypt (xor) with mask
-        mov [edx], eax      ; store DWORD in pRSNewEntry
-        
-        add pRSNewEntry, SIZEOF DWORD
-        add pRSEntry, SIZEOF DWORD
-        mov ebx, pRSEntry
+    .IF lpdwDecodedRichSignature != 0
+        Invoke GlobalAlloc, GMEM_FIXED or GMEM_ZEROINIT, dwSize
+        mov pRSNewData, eax
+        mov pRSNewEntry, eax
         mov edx, pRSNewEntry
-        inc i
-        mov eax, i
-    .ENDW
-    
-    ; write new mask for decrypted signature
-    mov dword ptr [edx+4], 0FFFFFFFFh
-    
-    ; return decrypted block and size
-    mov ebx, lpDecodedRichSignature
-    mov eax, pRSNewData
-    mov [ebx], eax
+        
+        ; decrypt signature
+        mov ebx, pRichSignature
+        mov pRSEntry, ebx
+        mov ecx, 0
+        mov eax, 0
+        .WHILE eax < nSignDwords && ebx < dwEndAddress
+            mov eax, [ebx]      ; read pRSEntry DWORD
+            mov ebx, dwMask
+            xor eax, ebx        ; decrypt (xor) with mask
+            mov [edx], eax      ; store DWORD in pRSNewEntry
+            
+            add pRSNewEntry, SIZEOF DWORD
+            add pRSEntry, SIZEOF DWORD
+            mov ebx, pRSEntry
+            mov edx, pRSNewEntry
+            inc ecx
+            mov eax, ecx
+        .ENDW
+        
+        ; write new mask for decrypted signature
+        mov dword ptr [edx+4], 0FFFFFFFFh
+        
+        ; return decrypted block and size
+        mov ebx, lpdwDecodedRichSignature
+        mov eax, pRSNewData
+        mov [ebx], eax
+    .ENDIF
     
     .IF lpdwSize != NULL
         mov ebx, lpdwSize
@@ -1868,6 +1915,20 @@ PE_RichSignatureDecode PROC USES EBX EDX hPE:DWORD, lpDecodedRichSignature:DWORD
     mov eax, TRUE
     ret
 PE_RichSignatureDecode ENDP
+
+;for i = 4, nSignDwords - 1, 2 do
+;
+;   dw = ReadDword(hFile, 0x80 + (i * 4)) ^ mask
+;
+;   id = dw >> 16
+;   minver = dw & 0xFFFF
+;
+;   vnum = ReadDword(hFile, 0x80 + ((i + 1) * 4)) ^ mask
+;
+;   strInfo = strInfo .. "\r\n" .. "Id: " .. id
+;       .. " Version: " .. minver .. " Times: " .. vnum
+;end
+;https://github.com/dishather/richprint/blob/master/comp_id.txt
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
@@ -2080,6 +2141,127 @@ PE_Is64 PROC USES EBX hPE:DWORD
     mov eax, [ebx].PEINFO.PE64
     ret
 PE_Is64 ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_Hash - Hash PE file contents into buffer provided by lpHashBytes param
+; and return size of returned hash bytes in lpdwHashSize if not 0.
+; lpHashBytes can be 0 if we want to return the size only in lpdwHashSize for
+; allocating correct size of buffer, otherwise ensure lpHashBytes is large
+; enough for the hash type.
+; dwHashType: 0=MD5, 1=SHA1, 2=SHA256
+;
+; Code adapted from Michael B: 
+; https://github.com/DownWithUp/CommandPrompt-Add-Ons/blob/master/FASM/SHA256.asm
+; Returns: TRUE or FALSE
+;----------------------------------------------------------------------------
+PE_Hash PROC USES EBX hPE:DWORD, dwHashType:DWORD, lpHashBytes:DWORD, lpdwHashSize:DWORD
+    LOCAL hProv:DWORD
+    LOCAL hHash:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL dwBytesToRead:DWORD
+    
+    include advapi32.inc
+    includelib advapi32.lib
+    
+    .CONST
+    CRYPT_VERIFYCONTEXT EQU 0F0000000h
+    PROV_RSA_AES        EQU 24
+    HP_HASHVAL          EQU 2h
+    HP_HASHSIZE         EQU 4h
+    
+    ALG_CLASS_HASH      EQU (4 SHL 13)
+    ALG_TYPE_ANY        EQU 0
+    ALG_SID_MD5         EQU 3
+    ALG_SID_SHA1        EQU 4
+    ALG_SID_SHA_256     EQU 12
+    CALG_MD5            EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_MD5)
+    CALG_SHA            EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_SHA)
+    CALG_SHA1           EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_SHA1)
+    CALG_SHA_256        EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_SHA_256)  
+    ;CALG_SHA_256        EQU 800Ch
+    MD5LEN              EQU 16
+    SHA1LEN             EQU 20
+    SHA256LEN           EQU 64
+    
+    .CODE
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    .IF lpHashBytes == 0 && lpdwHashSize == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    mov eax, [ebx].PEINFO.PEFilesize
+    mov dwBytesToRead, eax
+    
+    Invoke CryptAcquireContextA, Addr hProv, 0, 0, PROV_RSA_AES, CRYPT_VERIFYCONTEXT
+    .IF eax == 0
+        ret
+    .ENDIF
+    
+    ; Create hash
+    mov eax, dwHashType
+    .IF eax == 0 ; MD5
+        Invoke CryptCreateHash, hProv, CALG_MD5, 0, 0, Addr hHash
+    .ELSEIF eax == 1 ; SHA1
+        Invoke CryptCreateHash, hProv, CALG_SHA1, 0, 0, Addr hHash
+    .ELSEIF eax == 2 ; SHA256
+        Invoke CryptCreateHash, hProv, CALG_SHA_256, 0, 0, Addr hHash
+    .ELSE
+        xor eax, eax
+        ret
+    .ENDIF
+    .IF eax == 0
+        ret
+    .ENDIF
+    
+    ; Hash PE file mapped into memory
+    Invoke CryptHashData, hHash, PEMemMapPtr, dwBytesToRead, 0
+    .IF eax == 0
+        ret
+    .ENDIF
+    
+    ; Repurpose dwBytesToRead variable
+    mov eax, dwHashType
+    .IF eax == 0 ; MD5
+        mov dwBytesToRead, MD5LEN
+    .ELSEIF eax == 1 ; SHA1
+        mov dwBytesToRead, SHA1LEN
+    .ELSEIF eax == 2 ; SHA256
+        mov dwBytesToRead, SHA256LEN
+    .ELSE
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    ; Return hash bytes and/or hash size
+    .IF lpHashBytes != 0
+        Invoke CryptGetHashParam, hHash, HP_HASHVAL, lpHashBytes, Addr dwBytesToRead, 0
+        .IF eax == 0
+            ret
+        .ENDIF
+    .ENDIF
+    .IF lpdwHashSize != 0
+        Invoke CryptGetHashParam, hHash, HP_HASHSIZE, lpdwHashSize, Addr dwBytesToRead, 0
+        .IF eax == 0
+            ret
+        .ENDIF
+    .ENDIF
+    
+    Invoke CryptDestroyHash, hHash
+    Invoke CryptReleaseContext, hProv, 0
+    
+    mov eax, TRUE
+    ret
+PE_Hash ENDP
 
 
 
