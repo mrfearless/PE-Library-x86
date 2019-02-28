@@ -54,6 +54,7 @@ PE_HeaderFile               PROTO :DWORD                            ; hPE
 PE_HeaderOptional           PROTO :DWORD                            ; hPE
 PE_HeaderSections           PROTO :DWORD                            ; hPE
 PE_HeaderRich               PROTO :DWORD                            ; hPE
+PE_HeaderStub               PROTO :DWORD                            ; hPE
 
 ; Section Functions:
 PE_SectionHeaderCount       PROTO :DWORD                            ; hPE
@@ -63,6 +64,8 @@ PE_SectionHeaderByName      PROTO :DWORD,:DWORD                     ; hPE, lpszS
 PE_SectionHeaderByType      PROTO :DWORD,:DWORD                     ; hPE, dwSectionType
 PE_SectionHeaderByAddr      PROTO :DWORD,:DWORD                     ; hPE, dwAddress
 PE_SectionName              PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
+PE_SectionCharacteristics   PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
+PE_SectionType              PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
 
 ; Section Manipulate Functions: (WIP - NOT FINISHED - DONT USE)
 PE_SectionAdd               PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics
@@ -73,10 +76,11 @@ PE_SectionMove              PROTO :DWORD,:DWORD,:DWORD,:DWORD,:DWORD; hPE, lpszS
 ; Import Functions
 PE_ImportDirectoryTable     PROTO :DWORD                            ; hPE
 PE_ImportLookupTable        PROTO :DWORD,:DWORD,:DWORD              ; hPE, dwImportDirectoryEntryIndex, lpdwImportCount
-PE_ImportHintNameTable      PROTO :DWORD                            ; hPE
+PE_ImportHintNameTable      PROTO :DWORD,:DWORD,:DWORD              ; hPE, dwImportDirectoryEntryIndex, dwFunctionIndex
 PE_ImportAddressTable       PROTO :DWORD                            ; hPE
 PE_ImportDirectoryEntryCount PROTO :DWORD                           ; hPE
 PE_ImportDirectoryEntryDLL  PROTO :DWORD,:DWORD                     ; hPE, dwImportDirectoryEntryIndex
+PE_ImportDirectoryEntryFunctions PROTO :DWORD,:DWORD,:DWORD         ; hPE, dwImportDirectoryEntryIndex, lpdwFunctionsList
 
 ; Common Info Functions
 ;------------------------------------------------------------------------------
@@ -103,18 +107,38 @@ PE_Hash                     PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, dwHas
 PE_RVAToOffset              PROTO :DWORD,:DWORD                     ; hPE, dwRVA
 PE_OffsetToRVA              PROTO :DWORD,:DWORD                     ; hPE, dwOffset
 
-
+PE_FileName                 PROTO :DWORD                            ; hPE
+PE_FileNameOnly             PROTO :DWORD,:DWORD                     ; hPE, lpszFileNameOnly
+PE_FileSize                 PROTO :DWORD                            ; hPE
 
 
 ;------------------------------------------------------------------------------
 ; PE Structures
 ;------------------------------------------------------------------------------
 IFNDEF RICH_SIGNATURE_ENTRY
-RICH_SIGNATURE_ENTRY STRUC
-    ID               DW ?
-    Build            DW ?
-    Count            DD ?
-RICH_SIGNATURE_ENTRY ENDS
+RICH_SIGNATURE_ENTRY  STRUC
+    UNION
+        STRUCT
+            EntryType DW ?
+            Build     DW ?
+        ENDS
+        ID            DD ?
+    ENDS
+    Count             DD ?
+; Entries start at offset 16 from Rich Signature Header 
+; After 'DanS' +12    
+RICH_SIGNATURE_ENTRY  ENDS
+ENDIF
+
+IFNDEF IMPORT_FUNCTION
+IMPORT_FUNCTION          STRUC; Combines Import Lookup Table & Hint/Name Table for a function
+    dwOrdinalNameFlag    DD ? ; TRUE for ordinal, FALSE for name
+    lpszFunctionName     DD ? ; pointer to function name string in PE memory mapped file
+    dwFunctionNameOffset DD ? ; file offset to function name string 
+    dwFunctionNameRVA    DD ? ; RVA to function name string
+    dwOrdinal            DD ? ; Ordinal number
+    dwHint               DD ? ; Hint number
+IMPORT_FUNCTION          ENDS
 ENDIF
 
 IFNDEF IMAGE_DATA_DIRECTORY

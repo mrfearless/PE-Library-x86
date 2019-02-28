@@ -1107,6 +1107,25 @@ PE_HeaderRich PROC USES EBX ECX hPE:DWORD
     ret
 PE_HeaderRich ENDP
 
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_HeaderStub - returns pointer to DOS Stub
+;----------------------------------------------------------------------------
+PE_HeaderStub PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_HeaderDOS, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    add eax, SIZEOF IMAGE_DOS_HEADER
+    ret
+PE_HeaderStub ENDP
+
+
+
 
 
 ;############################################################################
@@ -1456,6 +1475,77 @@ PE_SectionName ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
+; PE_SectionCharacteristics - Get section characteristics for specified 
+; section (dwSectionIndex)
+; Returns: section Characteristics or NULL
+;----------------------------------------------------------------------------
+PE_SectionCharacteristics PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SectionHeaderByIndex, hPE, dwSectionIndex
+    .IF eax == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, eax
+    mov eax, [ebx].IMAGE_SECTION_HEADER.Characteristics
+    ret
+PE_SectionCharacteristics ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionType - Get section characteristics for specified 
+; section (dwSectionIndex) and return type of section: executable, writable 
+; data, read only data, uninitialized data
+; Returns: 0 for unknow, 1 for EX, 2 for WD, 3 for RD, 4 for 0D
+;----------------------------------------------------------------------------
+PE_SectionType PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
+    LOCAL Characteristics:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SectionCharacteristics, hPE, dwSectionIndex
+    .IF eax == 0
+        ret
+    .ENDIF
+    mov Characteristics, eax
+    
+    and eax, (IMAGE_SCN_CNT_CODE or IMAGE_SCN_MEM_EXECUTE)
+    .IF eax == (IMAGE_SCN_CNT_CODE or IMAGE_SCN_MEM_EXECUTE)
+        mov eax, 1 ; code execution
+        ret
+    .ENDIF
+    
+    mov eax, Characteristics
+    and eax, (IMAGE_SCN_CNT_INITIALIZED_DATA or IMAGE_SCN_MEM_READ or IMAGE_SCN_MEM_WRITE)
+    .IF eax == (IMAGE_SCN_CNT_INITIALIZED_DATA or IMAGE_SCN_MEM_READ or IMAGE_SCN_MEM_WRITE)
+        mov eax, 2 ; writable data
+        ret
+    .ENDIF
+    
+    mov eax, Characteristics
+    and eax, (IMAGE_SCN_CNT_INITIALIZED_DATA or IMAGE_SCN_MEM_READ)
+    .IF eax == (IMAGE_SCN_CNT_INITIALIZED_DATA or IMAGE_SCN_MEM_READ)
+        mov eax, 3 ; readonly data
+        ret
+    .ENDIF
+    
+    mov eax, Characteristics
+    and eax, (IMAGE_SCN_CNT_UNINITIALIZED_DATA or IMAGE_SCN_MEM_READ)
+    .IF eax == (IMAGE_SCN_CNT_UNINITIALIZED_DATA or IMAGE_SCN_MEM_READ)
+        mov eax, 4 ; uninitialized data like .bss
+        ret
+    .ENDIF
+    
+    ret
+PE_SectionType ENDP
+
+
+PE_ALIGN
+;----------------------------------------------------------------------------
 ; PE_SectionAdd - Add a new section header to end of section table and a new
 ; section of specified size and characteristics to end of PE file.
 ; Returns: TRUE if successful or FALSE otherwise.
@@ -1649,18 +1739,21 @@ PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_ImportLookupTable - Get pointer to Import Lookup Table (array of DWORDs) 
 ; for the specified ImportDirectoryTable entry (dwImportDirectoryEntryIndex)
-; Returns: pointer to Import Lookup Table, or NULL
+; Returns: pointer to Import Lookup Table, or 0
 ;----------------------------------------------------------------------------
 PE_ImportLookupTable PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD, lpdwImportCount:DWORD
     LOCAL PEMemMapPtr:DWORD
     LOCAL pImportDirectoryTable:DWORD
     LOCAL pImportLookupTable:DWORD
+    LOCAL bPE64:DWORD
     
     .IF hPE == NULL
         xor eax, eax
         ret
     .ENDIF
     mov ebx, hPE
+    mov eax, [ebx].PEINFO.PE64
+    mov bPE64, eax
     mov eax, [ebx].PEINFO.PEMemMapPtr
     mov PEMemMapPtr, eax
     mov eax, [ebx].PEINFO.PEImportDirectoryCount
@@ -1690,10 +1783,17 @@ PE_ImportLookupTable PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD,
     .IF lpdwImportCount != NULL ; loop and count how many functions exported
         mov eax, 0
         mov ebx, pImportLookupTable
-        .WHILE dword ptr [ebx] != 0
-            inc eax
-            add ebx, SIZEOF DWORD ; array of DWORDS each pointing to an IMAGE_IMPORT_BY_NAME structure
-        .ENDW
+        .IF bPE64 == TRUE
+            .WHILE dword ptr [ebx] != 0 && dword ptr [ebx+4] != 0
+                inc eax
+                add ebx, SIZEOF QWORD ; array of QWORDS each pointing to an IMAGE_IMPORT_BY_NAME structure
+            .ENDW
+        .ELSE
+            .WHILE dword ptr [ebx] != 0
+                inc eax
+                add ebx, SIZEOF DWORD ; array of DWORDS each pointing to an IMAGE_IMPORT_BY_NAME structure
+            .ENDW
+        .ENDIF
         mov ebx, lpdwImportCount
         mov [ebx], eax
     .ENDIF
@@ -1704,13 +1804,71 @@ PE_ImportLookupTable ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; 
+; PE_ImportHintNameTable - Get pointer to a Hint Name Table for a specific
+; function as specified by dwFunctionIndex parameter for a specific DLL 
+; (as specified by dwImportDirectoryEntryIndex).
+; If import by ordinal then will return will be 0
+; Returns: pointer to IMAGE_IMPORT_BY_NAME for specific function or 0
 ;----------------------------------------------------------------------------
-PE_ImportHintNameTable PROC USES EBX hPE:DWORD
+PE_ImportHintNameTable PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD, dwFunctionIndex:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL dwImportCount:DWORD
+    LOCAL pImportLookupTable:DWORD
+    LOCAL pImportLookupTableEntry:DWORD
+    LOCAL dwHintNameTableRVA:DWORD
+    LOCAL bPE64:DWORD
+    
     .IF hPE == NULL
         xor eax, eax
         ret
     .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PE64
+    mov bPE64, eax
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    
+    Invoke PE_ImportLookupTable, hPE, dwImportDirectoryEntryIndex, Addr dwImportCount
+    .IF eax == NULL
+        ret
+    .ENDIF
+    mov pImportLookupTable, eax
+    
+    mov eax, dwFunctionIndex
+    .IF eax > dwImportCount
+        xor eax, eax
+        ret
+    .ENDIF
+    .IF bPE64 == TRUE
+        mov ebx, SIZEOF QWORD
+    .ELSE
+        mov ebx, SIZEOF DWORD
+    .ENDIF
+    mul ebx
+    add eax, pImportLookupTable
+    mov pImportLookupTableEntry, eax
+    
+    mov ebx, pImportLookupTableEntry
+    .IF bPE64 == TRUE
+        mov eax, [ebx+4]
+    .ELSE
+        mov eax, [ebx]
+    .ENDIF
+    mov dwHintNameTableRVA, eax
+    and eax, 80000000h
+    .IF eax == 1 ; import by ordinal
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    Invoke PE_RVAToOffset, hPE, dwHintNameTableRVA
+    .IF eax == 0
+        ret
+    .ENDIF    
+    add eax, PEMemMapPtr
+    ; eax points to IMAGE_IMPORT_BY_NAME for this function for this import directory entry
+    
+    
     ret
 PE_ImportHintNameTable ENDP
 
@@ -1740,6 +1898,106 @@ PE_ImportDirectoryEntryCount PROC USES EBX hPE:DWORD
     mov eax, [ebx].PEINFO.PEImportDirectoryCount
     ret
 PE_ImportDirectoryEntryCount ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_ImportDirectoryEntryFunctions - Get function names for a DLL
+; Returns: 
+;----------------------------------------------------------------------------
+PE_ImportDirectoryEntryFunctions PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:DWORD, lpdwFunctionsList:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL dwImportCount:DWORD
+    LOCAL pImportLookupTable:DWORD
+    LOCAL pImportLookupTableEntry:DWORD
+    LOCAL dwHintNameTableRVA:DWORD
+    LOCAL pNameList:DWORD
+    LOCAL pNameListNextFunction:DWORD
+    LOCAL dwNameListSize:DWORD
+    LOCAL bPE64:DWORD
+    LOCAL nImport:DWORD
+    
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    .IF lpdwFunctionsList == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PE64
+    mov bPE64, eax
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    
+    Invoke PE_ImportLookupTable, hPE, dwImportDirectoryEntryIndex, Addr dwImportCount
+    .IF eax == NULL
+        ret
+    .ENDIF
+    mov pImportLookupTable, eax
+    mov pImportLookupTableEntry, eax
+    
+    ; calc max name list string size
+    mov eax, dwImportCount
+    inc eax
+    mov ebx, SIZEOF DWORD
+    mul ebx
+    mov dwNameListSize, eax
+    
+    Invoke GlobalAlloc, GMEM_FIXED or GMEM_ZEROINIT, dwNameListSize
+    .IF eax == NULL
+        ret
+    .ENDIF
+    mov pNameList, eax
+    mov pNameListNextFunction, eax
+
+    mov ebx, pImportLookupTableEntry
+    mov nImport, 0
+    mov eax, 0
+    .WHILE eax < dwImportCount
+        .IF bPE64 == TRUE
+            mov eax, [ebx+4]
+        .ELSE
+            mov eax, [ebx]
+        .ENDIF
+        mov dwHintNameTableRVA, eax
+        and eax, 80000000h
+        .IF eax == 1 ; import by ordinal
+            ; do something
+        .ENDIF
+        
+        Invoke PE_RVAToOffset, hPE, dwHintNameTableRVA
+        .IF eax == 0
+            ret
+        .ENDIF    
+        add eax, PEMemMapPtr
+        mov ebx, eax
+        lea eax, [ebx].IMAGE_IMPORT_BY_NAME.Name1
+        mov ebx, pNameListNextFunction
+        mov [ebx], eax
+
+        add pNameListNextFunction, SIZEOF DWORD
+        .IF bPE64 == TRUE
+            add pImportLookupTableEntry, SIZEOF QWORD
+        .ELSE
+            add pImportLookupTableEntry, SIZEOF DWORD
+        .ENDIF
+        mov ebx, pImportLookupTableEntry
+        inc nImport
+        mov eax, nImport
+    .ENDW
+    
+    mov ebx, lpdwFunctionsList
+    mov eax, pNameList
+    mov [ebx], eax
+    
+    mov eax, dwImportCount
+    ret
+PE_ImportDirectoryEntryFunctions ENDP
+
+
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
@@ -2424,6 +2682,57 @@ PE_OffsetToRVA PROC USES EBX hPE:DWORD, dwOffset:DWORD
     ret
 PE_OffsetToRVA ENDP
 
+PE_ALIGN
+;-------------------------------------------------------------------------------------
+; PE_FileName - returns in eax pointer to zero terminated string contained filename that is open or NULL if not opened
+;-------------------------------------------------------------------------------------
+PE_FileName PROC USES EBX hPE:DWORD
+    LOCAL PEFilename:DWORD
+    .IF hPE == NULL
+        mov eax, NULL
+        ret
+    .ENDIF
+    mov ebx, hPE
+    lea eax, [ebx].PEINFO.PEFilename
+    mov PEFilename, eax
+    Invoke lstrlen, PEFilename
+    .IF eax == 0
+        mov eax, NULL
+    .ELSE
+        mov eax, PEFilename
+    .ENDIF
+    ret
+PE_FileName endp
+
+PE_ALIGN
+;-------------------------------------------------------------------------------------
+; PE_FileNameOnly - returns in eax true or false if it managed to pass to the buffer pointed at lpszFileNameOnly, the stripped filename without extension
+;-------------------------------------------------------------------------------------
+PE_FileNameOnly PROC hPE:DWORD, lpszFileNameOnly:DWORD
+    Invoke PE_FileName, hPE
+    .IF eax == NULL
+        mov eax, FALSE
+        ret
+    .ENDIF
+    Invoke PEJustFname, eax, lpszFileNameOnly
+    mov eax, TRUE
+    ret
+PE_FileNameOnly endp
+
+PE_ALIGN
+;-------------------------------------------------------------------------------------
+; PE_FileSize - returns in eax size of file or 0
+;-------------------------------------------------------------------------------------
+PE_FileSize PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEFilesize
+    ret
+PE_FileSize endp
+
 
 
 ;############################################################################
@@ -2455,6 +2764,54 @@ PESignature PROC USES EBX pPEInMemory:DWORD
     mov eax, PE_INVALID
     ret
 PESignature ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; Strip path name to just filename Without extention
+;----------------------------------------------------------------------------
+PEJustFname PROC szFilePathName:DWORD, szFileName:DWORD
+    LOCAL LenFilePathName:DWORD
+    LOCAL nPosition:DWORD
+    
+    Invoke lstrlen, szFilePathName
+    mov LenFilePathName, eax
+    mov nPosition, eax
+    
+    .IF LenFilePathName == 0
+        mov byte ptr [edi], 0
+        ret
+    .ENDIF
+    
+    mov esi, szFilePathName
+    add esi, eax
+    
+    mov eax, nPosition
+    .WHILE eax != 0
+        movzx eax, byte ptr [esi]
+        .IF al == '\' || al == ':' || al == '/'
+            inc esi
+            .BREAK
+        .ENDIF
+        dec esi
+        dec nPosition
+        mov eax, nPosition
+    .ENDW
+    mov edi, szFileName
+    mov eax, nPosition
+    .WHILE eax != LenFilePathName
+        movzx eax, byte ptr [esi]
+        .IF al == '.' ; stop here
+            .BREAK
+        .ENDIF
+        mov byte ptr [edi], al
+        inc edi
+        inc esi
+        inc nPosition
+        mov eax, nPosition
+    .ENDW
+    mov byte ptr [edi], 0h
+    ret
+PEJustFname ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------

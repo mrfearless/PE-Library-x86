@@ -16,6 +16,7 @@ PE_HeaderFile,hPE
 PE_HeaderOptional,hPE
 PE_HeaderSections,hPE
 PE_HeaderRich,hPE
+PE_HeaderStub,hPE
 ; Section Functions:
 PE_SectionHeaderCount,hPE
 PE_SectionsHeaders,hPE
@@ -28,6 +29,8 @@ PE_SectionAdd,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics
 PE_SectionDelete,hPE,lpszSectionName,dwSectionIndex
 PE_SectionInsert,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics,dwSectionIndex
 PE_SectionMove,hPE,lpszSectionName,dwSectionIndex,lpszSectionNameToMoveTo,dwSectionIndexToMoveTo
+PE_SectionCharacteristics,hPE,dwSectionIndex
+PE_SectionType,hPE,dwSectionIndex
 ; Import Functions
 PE_ImportDirectoryTable,hPE
 PE_ImportLookupTable,hPE,dwImportDirectoryEntryIndex,lpdwImportCount
@@ -35,6 +38,7 @@ PE_ImportHintNameTable,hPE
 PE_ImportAddressTable,hPE
 PE_ImportDirectoryEntryCount,hPE
 PE_ImportDirectoryEntryDLL,hPE,dwImportDirectoryEntryIndex
+PE_ImportDirectoryEntryFunctions,hPE,dwImportDirectoryEntryIndex,lpdwFunctionsList
 ; Common Info Functions:
 PE_RichSignatureDecode,hPE,lpdwDecodedRichSignature,lpdwSize
 PE_Machine,hPE
@@ -52,5 +56,7 @@ PE_Hash,hPE,dwHashType,lpHashBytes,lpdwHashSize
 ; Helper Functions:
 PE_RVAToOffset,hPE,dwRVA
 PE_OffsetToRVA,hPE,dwOffset
-
+PE_FileName,hPE
+PE_FileNameOnly,hPE,lpszFileNameOnly
+PE_FileSize,hPE
 
