@@ -90,6 +90,8 @@ PE_ImportDirectoryEntryFunctions PROTO :DWORD,:DWORD,:DWORD         ; hPE, dwImp
 ;------------------------------------------------------------------------------
 
 PE_RichSignatureDecode      PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpdwDecodedRichSignature, lpdwSize
+PE_RichSignatureCompIDs     PROTO :DWORD                            ; hPE
+PE_RichSignatureProduct     PROTO :DWORD,:DWORD,:DWORD              ; hPE, dwCompIDIndex, lpszProduct
 PE_Machine                  PROTO :DWORD                            ; hPE
 PE_Characteristics          PROTO :DWORD                            ; hPE
 PE_LinkerVersion            PROTO :DWORD                            ; hPE
@@ -110,7 +112,7 @@ PE_OffsetToRVA              PROTO :DWORD,:DWORD                     ; hPE, dwOff
 PE_FileName                 PROTO :DWORD                            ; hPE
 PE_FileNameOnly             PROTO :DWORD,:DWORD                     ; hPE, lpszFileNameOnly
 PE_FileSize                 PROTO :DWORD                            ; hPE
-
+PE_FileOffset               PROTO :DWORD,:DWORD                     ; hPE, dwMappedAddress
 
 ;------------------------------------------------------------------------------
 ; PE Structures
@@ -462,6 +464,262 @@ SIZEOF_STANDARD_FIELDS_PE32     EQU 28d
 SIZEOF_STANDARD_FIELDS_PE64     EQU 24d
 SIZEOF_WINDOWS_FIELDS_PE32      EQU 68d
 SIZEOF_WINDOWS_FIELDS_PE64      EQU 88d
+
+; Rich Product IDs:
+;
+; Info compiled from:
+; - https://github.com/dishather/richprint/blob/master/comp_id.txt
+; - https://github.com/kirschju/richheader/blob/master/prodids.py
+; - http://bytepointer.com/articles/the_microsoft_rich_header.htm
+
+; Masm:
+ID_MASM613                  EQU 000Eh ; Masm v613
+ID_MASM614                  EQU 0012h ; Masm v614
+ID_MASM615                  EQU 002Ah ; Masm v615
+ID_MASM620                  EQU 002Dh ; Masm v620
+ID_MASM700                  EQU 0040h ; Masm v700
+ID_MASM710                  EQU 000Fh ; Masm v710
+ID_MASM710P                 EQU 004Bh ; Masm v710p
+ID_MASM800                  EQU 007Dh ; Masm v800
+ID_MASM900                  EQU 0095h ; Masm v900
+ID_MASM1000                 EQU 009Eh ; Masm v1000
+ID_MASM1010                 EQU 00BBh ; Masm v1010
+ID_MASM1100                 EQU 00CDh ; Masm v1100
+ID_MASM1200                 EQU 00DFh ; Masm v1200
+ID_MASM1210                 EQU 00F1h ; Masm v1210
+ID_MASM1400                 EQU 0103h ; Masm v1400+
+
+; 258=0x102, 260=0x104, 261=0x105, 265=0x109, 270=0x10E
+; Linkers
+ID_LINKER510                EQU 0002h ; Linker v510
+ID_LINKER511                EQU 0010h ; Linker v511
+ID_LINKER512                EQU 0013h ; Linker v512
+ID_LINKER600                EQU 0004h ; Linker v600
+ID_LINKER601                EQU 0020h ; Linker v601
+ID_LINKER610                EQU 001Eh ; Linker v610
+ID_LINKER620                EQU 0025h ; Linker v620
+ID_LINKER621                EQU 0028h ; Linker v621
+ID_LINKER622                EQU 003Ch ; Linker v622
+ID_LINKER624                EQU 0056h ; Linker v624
+ID_LINKER700                EQU 003Dh ; Linker v700
+ID_LINKER710P               EQU 0047h ; Linker v710p
+ID_LINKER710                EQU 005Ah ; Linker v710
+ID_LINKER800                EQU 0078h ; Linker v800
+ID_LINKER900                EQU 0091h ; Linker v900
+ID_LINKER1000               EQU 009Dh ; Linker v1000
+ID_LINKER1010               EQU 00BAh ; Linker v1010
+ID_LINKER1100               EQU 00CCh ; Linker v1100
+ID_LINKER1200               EQU 00DEh ; Linker v1200
+ID_LINKER1210               EQU 00F0h ; Linker v1210
+ID_LINKER1400               EQU 0102h ; Linker v1400+
+ID_LINKER1415               EQU 0102h ; Linker v1415 build 26730
+; Resource Compilers:
+ID_CVTRES500                EQU 0006h ; Cvtres v500
+ID_CVTRES501                EQU 0038h ; Cvtres v501
+ID_CVTRES700                EQU 0045h ; Cvtres v700
+ID_CVTRES710P               EQU 0046h ; Cvtres v710p
+ID_CVTRES710                EQU 005Eh ; Cvtres v710
+ID_CVTRES800                EQU 007Ch ; Cvtres v800
+ID_CVTRES900                EQU 0094h ; Cvtres v900
+ID_CVTRES1000               EQU 009Ah ; Cvtres v1000
+ID_CVTRES1010               EQU 00B7h ; Cvtres v1010
+ID_CVTRES1100               EQU 00C9h ; Cvtres v1100
+ID_CVTRES1200               EQU 00DBh ; Cvtres v1200
+ID_CVTRES1210               EQU 00EDh ; Cvtres v1210
+ID_CVTRES1400               EQU 00FFh ; Cvtres v1400+
+; Imports:
+ID_IMPLIB622                EQU 0036h ; Implib v622
+ID_IMPLIB624                EQU 0059h ; Implib v624
+ID_IMPLIB700                EQU 0019h ; Implib v700
+ID_IMPLIB710P               EQU 004Ah ; Implib v710p
+ID_IMPLIB710                EQU 005Dh ; Implib v710
+ID_IMPLIB800                EQU 007Bh ; Implib v800
+ID_IMPLIB900                EQU 0093h ; Implib v900
+ID_IMPLIB1000               EQU 009Ch ; Implib v1000
+ID_IMPLIB1010               EQU 00B9h ; Implib v1010
+ID_IMPLIB1100               EQU 00CBh ; Implib v1100
+ID_IMPLIB1200               EQU 00DDh ; Implib v1200
+ID_IMPLIB1210               EQU 00EFh ; Implib v1210
+ID_IMPLIB1400               EQU 0101h ; Implib v1400+
+; Exports:
+ID_EXPORT622                EQU 003Eh ; Export v622
+ID_EXPORT624                EQU 0058h ; Export v624
+ID_EXPORT700                EQU 003Fh ; Export v700
+ID_EXPORT710P               EQU 0049h ; Export v710p
+ID_EXPORT710                EQU 005Ch ; Export v710
+ID_EXPORT800                EQU 007Ah ; Export v800
+ID_EXPORT900                EQU 0092h ; Export v900
+ID_EXPORT1000               EQU 009Bh ; Export v1000
+ID_EXPORT1010               EQU 00B8h ; Export v1010
+ID_EXPORT1100               EQU 00CAh ; Export v1100
+ID_EXPORT1200               EQU 00DCh ; Export v1200
+ID_EXPORT1210               EQU 00EEh ; Export v1210
+ID_EXPORT1400               EQU 0100h ; Export v1400+
+; ALias:
+ID_ALIASOBJ60               EQU 000Ch ; AliasObj v60
+ID_ALIASOBJ70               EQU 0027h ; AliasObj v70
+ID_ALIASOBJ710              EQU 0069h ; AliasObj v710
+ID_ALIASOBJ710P             EQU 006Ah ; AliasObj v710p
+ID_ALIASOBJ800              EQU 007Eh ; AliasObj v800
+ID_ALIASOBJ900              EQU 0096h ; AliasObj v900
+ID_ALIASOBJ1000             EQU 0098h ; AliasObj v1000
+ID_ALIASOBJ1010             EQU 00B5h ; AliasObj v1010
+ID_ALIASOBJ1100             EQU 00C7h ; AliasObj v1100
+ID_ALIASOBJ1200             EQU 00D9h ; AliasObj v1200
+ID_ALIASOBJ1210             EQU 00EBh ; AliasObj v1210
+ID_ALIASOBJ1400             EQU 00FDh ; AliasObj v1400+
+
+; 258=0x102, 260=0x104, 261=0x105, 265=0x109, 270=0x10E
+
+; C++
+ID_CPP_VS98                 EQU 000Bh ; MSVS98 6.0
+ID_CPP_VCPP6SP5             EQU 0016h ; MSVC++ 6.0 SP5
+ID_CPP_VS2002               EQU 001Dh ; MSVS2002 (.NET)
+;ID_CPP_                     EQU 0024h ; MSVS 12 1
+;ID_CPP_                     EQU 0031h ; MSVS 12 2
+;ID_CPP_                     EQU 0033h ; MSVS 12 2 Std
+;ID_CPP_                     EQU 003Ah ; MSVS 13 Std
+ID_CPP_VS2003_1310P         EQU 004Dh ; MSVS2003 1310p (.NET)
+ID_CPP_VS2003_1310P_STD     EQU 004Fh ; MSVS2003 1310p Std (.NET)
+ID_CPP_VS2003_1310          EQU 0060h ; MSVS2003 1310 (.NET)
+ID_CPP_VS2003_1310_STD      EQU 0062h ; MSVS2003 1310 Std (.NET)
+ID_CPP_VS2005_1400          EQU 006Eh ; MSVS2005 1400
+ID_CPP_VS2005_1400_STD      EQU 0070h ; MSVS2005 1400 Std
+ID_CPP_VS2008_1500          EQU 0084h ; MSVS2008 1500
+ID_CPP_VS2008_1500_STD      EQU 0086h ; MSVS2008 1500 Std
+ID_CPP_VS2010_1600          EQU 00ABh ; MSVS2010 1600
+ID_CPP_VS2010_1610          EQU 00BDh ; MSVS2010 1610
+ID_CPP_VS2012_1700          EQU 00CFh ; MSVS2012 1700
+ID_CPP_VS2013_1800          EQU 00E1h ; MSVS2013 1800
+ID_CPP_VS2013_1810          EQU 00F3h ; MSVS2013 1810
+ID_CPP_VS2015_1900          EQU 0105h ; MSVS2015 1900 (Community)
+; C
+ID_C_VS98                   EQU 000Ah ; MSVS98 6.0
+ID_C_VCPP6SP5               EQU 0015h ; MSVC++ 6.0 SP5
+ID_C_VS2002                 EQU 001Ch ; MSVS2002 (.NET)
+;ID_C_                       EQU 0023h ; MSVS 12 1
+;ID_C_                       EQU 0030h ; MSVS 12 2
+;ID_C_                       EQU 0032h ; MSVS 12 2 Std
+;ID_C_                       EQU 0039h ; MSVS 13 Std
+ID_C_VS2003_1310P           EQU 004Ch ; MSVS2003 1310p (.NET)
+ID_C_VS2003_1310P_STD       EQU 004Eh ; MSVS2003 1310p Std (.NET)
+ID_C_VS2003_1310            EQU 005Fh ; MSVS2003 1310 (.NET)
+ID_C_VS2003_1310_STD        EQU 0061h ; MSVS2003 1310 Std (.NET)
+ID_C_VS2005_1400            EQU 006Dh ; MSVS2005 1400
+ID_C_VS2005_1400_STD        EQU 006Fh ; MSVS2005 1400 Std
+ID_C_VS2008_1500            EQU 0083h ; MSVS2008 1500
+ID_C_VS2008_1500_STD        EQU 0085h ; MSVS2008 1500 Std
+ID_C_VS2010_1600            EQU 00AAh ; MSVS2010 1600
+ID_C_VS2010_1610            EQU 00BCh ; MSVS2010 1610
+ID_C_VS2012_1700            EQU 00CEh ; MSVS2012 1700
+ID_C_VS2013_1800            EQU 00E0h ; MSVS2013 1800
+ID_C_VS2013_1810            EQU 00F2h ; MSVS2013 1810
+ID_C_VS2015_1900            EQU 0104h ; MSVS2015 1900 (Community)
+; Link Time Code Generation (LTCG) for C/CPP/MSIL (Microsoft Intermediate Language):
+ID_LTCG_C____13             EQU 002Bh ; Utc13_LTCG_C
+ID_LTCG_CPP__13             EQU 002Ch ; Utc13_LTCG_CPP
+ID_LTCG_C____1310P          EQU 0050h ; Utc1310p_LTCG_C
+ID_LTCG_CPP__1310P          EQU 0051h ; Utc1310p_LTCG_CPP
+ID_LTCG_C____1310           EQU 0063h ; Utc1310_LTCG_C
+ID_LTCG_CPP__1310           EQU 0064h ; Utc1310_LTCG_CPP
+ID_LTCG_C____1400           EQU 0071h ; Utc1400_LTCG_C
+ID_LTCG_CPP__1400           EQU 0072h ; Utc1400_LTCG_CPP
+ID_LTCG_MSIL_1400           EQU 0082h ; Utc1400_LTCG_MSIL
+ID_LTCG_C____1500           EQU 0089h ; Utc1500_LTCG_C
+ID_LTCG_CPP__1500           EQU 008Ah ; Utc1500_LTCG_CPP
+ID_LTCG_MSIL_1500           EQU 008Bh ; Utc1500_LTCG_MSIL
+ID_LTCG_C____1600PHX        EQU 00A3h ; Phx1600_LTCG_C
+ID_LTCG_CPP__1600PHX        EQU 00A4h ; Phx1600_LTCG_CPP
+ID_LTCG_MSIL_1600PHX        EQU 00A5h ; Phx1600_LTCG_MSIL
+ID_LTCG_C____1600           EQU 00AEh ; Utc1600_LTCG_C
+ID_LTCG_CPP__1600           EQU 00AFh ; Utc1600_LTCG_CPP
+ID_LTCG_MSIL_1600           EQU 00B0h ; Utc1600_LTCG_MSIL
+ID_LTCG_C____1610           EQU 00C0h ; Utc1610_LTCG_C
+ID_LTCG_CPP__1610           EQU 00C1h ; Utc1610_LTCG_CPP
+ID_LTCG_MSIL_1610           EQU 00C2h ; Utc1610_LTCG_MSIL
+ID_LTCG_C____1700           EQU 00D2h ; Utc1700_LTCG_C
+ID_LTCG_CPP__1700           EQU 00D3h ; Utc1700_LTCG_CPP
+ID_LTCG_MSIL_1700           EQU 00D4h ; Utc1700_LTCG_MSIL
+ID_LTCG_C____1800           EQU 00E4h ; Utc1800_LTCG_C
+ID_LTCG_CPP__1800           EQU 00E5h ; Utc1800_LTCG_CPP
+ID_LTCG_MSIL_1800           EQU 00E6h ; Utc1800_LTCG_MSIL
+ID_LTCG_C____1810           EQU 00F6h ; Utc1810_LTCG_C
+ID_LTCG_CPP__1810           EQU 00F7h ; Utc1810_LTCG_CPP
+ID_LTCG_MSIL_1810           EQU 00F8h ; Utc1810_LTCG_MSIL
+ID_LTCG_C____1900           EQU 0108h ; Utc1900_LTCG_C
+ID_LTCG_CPP__1900           EQU 0109h ; Utc1900_LTCG_CPP
+ID_LTCG_MSIL_1900           EQU 010Ah ; Utc1900_LTCG_MSIL
+; Profile Guided Optimizations (POGO/PGO) - POGO_I = /LTCG:PGINSTRUMENT /LTCG:PGI - POGO_O = /LTCG:PGOPTIMIZE /LTCG:PGO
+ID_POGO_I_C___13            EQU 0041h ; Utc13_POGO_I_C
+ID_POGO_I_CPP_13            EQU 0042h ; Utc13_POGO_I_CPP
+ID_POGO_O_C___13            EQU 0043h ; Utc13_POGO_O_C
+ID_POGO_O_CPP_13            EQU 0044h ; Utc13_POGO_O_CPP
+ID_POGO_I_C__1310P          EQU 0052h ; Utc1310p_POGO_I_C
+ID_POGO_I_CP_1310P          EQU 0053h ; Utc1310p_POGO_I_CP
+ID_POGO_O_C__1310P          EQU 0054h ; Utc1310p_POGO_O_C
+ID_POGO_O_CP_1310P          EQU 0055h ; Utc1310p_POGO_O_CP
+ID_POGO_I_C___1310          EQU 0065h ; Utc1310_POGO_I_C
+ID_POGO_I_CPP_1310          EQU 0066h ; Utc1310_POGO_I_CPP
+ID_POGO_O_C___1310          EQU 0067h ; Utc1310_POGO_O_C
+ID_POGO_O_CPP_1310          EQU 0068h ; Utc1310_POGO_O_CPP
+ID_POGO_I_C___1400          EQU 0073h ; Utc1400_POGO_I_C
+ID_POGO_I_CPP_1400          EQU 0074h ; Utc1400_POGO_I_CPP
+ID_POGO_O_C___1400          EQU 0075h ; Utc1400_POGO_O_C
+ID_POGO_O_CPP_1400          EQU 0076h ; Utc1400_POGO_O_CPP
+ID_POGO_I_C___1500          EQU 008Ch ; Utc1500_POGO_I_C
+ID_POGO_I_CPP_1500          EQU 008Dh ; Utc1500_POGO_I_CPP
+ID_POGO_O_C___1500          EQU 008Eh ; Utc1500_POGO_O_C
+ID_POGO_O_CPP_1500          EQU 008Fh ; Utc1500_POGO_O_CPP
+ID_POGO_I_C___1600PHX       EQU 00A6h ; Phx1600_POGO_I_C
+ID_POGO_I_CPP_1600PHX       EQU 00A7h ; Phx1600_POGO_I_CPP
+ID_POGO_O_C___1600PHX       EQU 00A8h ; Phx1600_POGO_O_C
+ID_POGO_O_CPP_1600PHX       EQU 00A9h ; Phx1600_POGO_O_CPP
+ID_POGO_I_C___1600          EQU 00B1h ; Utc1600_POGO_I_C
+ID_POGO_I_CPP_1600          EQU 00B2h ; Utc1600_POGO_I_CPP
+ID_POGO_O_C___1600          EQU 00B3h ; Utc1600_POGO_O_C
+ID_POGO_O_CPP_1600          EQU 00B4h ; Utc1600_POGO_O_CPP
+ID_POGO_I_C___1610          EQU 00C3h ; Utc1610_POGO_I_C
+ID_POGO_I_CPP_1610          EQU 00C4h ; Utc1610_POGO_I_CPP
+ID_POGO_O_C___1610          EQU 00C5h ; Utc1610_POGO_O_C
+ID_POGO_O_CPP_1610          EQU 00C6h ; Utc1610_POGO_O_CPP
+ID_POGO_I_C___1700          EQU 00D5h ; Utc1700_POGO_I_C
+ID_POGO_I_CPP_1700          EQU 00D6h ; Utc1700_POGO_I_CPP
+ID_POGO_O_C___1700          EQU 00D7h ; Utc1700_POGO_O_C
+ID_POGO_O_CPP_1700          EQU 00D8h ; Utc1700_POGO_O_CPP
+ID_POGO_I_C___1800          EQU 00E7h ; Utc1800_POGO_I_C
+ID_POGO_I_CPP_1800          EQU 00E8h ; Utc1800_POGO_I_CPP
+ID_POGO_O_C___1800          EQU 00E9h ; Utc1800_POGO_O_C
+ID_POGO_O_CPP_1800          EQU 00EAh ; Utc1800_POGO_O_CPP
+ID_POGO_I_C___1810          EQU 00F9h ; Utc1810_POGO_I_C
+ID_POGO_I_CPP_1810          EQU 00FAh ; Utc1810_POGO_I_CPP
+ID_POGO_O_C___1810          EQU 00FBh ; Utc1810_POGO_O_C
+ID_POGO_O_CPP_1810          EQU 00FCh ; Utc1810_POGO_O_CPP
+ID_POGO_I_C___1900          EQU 010Bh ; Utc1900_POGO_I_C
+ID_POGO_I_CPP_1900          EQU 010Ch ; Utc1900_POGO_I_CPP
+ID_POGO_O_C___1900          EQU 010Dh ; Utc1900_POGO_O_C
+ID_POGO_O_CPP_1900          EQU 010Eh ; Utc1900_POGO_O_CPP
+; Microsoft CIL to Native Converter (CVTCIL)
+ID_CVTCIL_C___1400          EQU 0080h ; Utc1400_ID_CVTCIL_C
+ID_CVTCIL_CPP_1400          EQU 0081h ; Utc1400_ID_CVTCIL_CPP
+ID_CVTCIL_C___1500          EQU 0087h ; Utc1500_ID_CVTCIL_C
+ID_CVTCIL_CPP_1500          EQU 0088h ; Utc1500_ID_CVTCIL_CPP
+ID_CVTCIL_C___1600PHX       EQU 00A1h ; Phx1600_ID_CVTCIL_C
+ID_CVTCIL_CPP_1600PHX       EQU 00A2h ; Phx1600_ID_CVTCIL_CPP
+ID_CVTCIL_C___1600          EQU 00ACh ; Utc1600_ID_CVTCIL_C
+ID_CVTCIL_CPP_1600          EQU 00ADh ; Utc1600_ID_CVTCIL_CPP
+ID_CVTCIL_C___1610          EQU 00BEh ; Utc1610_ID_CVTCIL_C
+ID_CVTCIL_CPP_1610          EQU 00BFh ; Utc1610_ID_CVTCIL_CPP
+ID_CVTCIL_C___1700          EQU 00D0h ; Utc1700_ID_CVTCIL_C
+ID_CVTCIL_CPP_1700          EQU 00D1h ; Utc1700_ID_CVTCIL_CPP
+ID_CVTCIL_C___1800          EQU 00E2h ; Utc1800_ID_CVTCIL_C
+ID_CVTCIL_CPP_1800          EQU 00E3h ; Utc1800_ID_CVTCIL_CPP
+ID_CVTCIL_C___1810          EQU 00F4h ; Utc1810_ID_CVTCIL_C
+ID_CVTCIL_CPP_1810          EQU 00F5h ; Utc1810_ID_CVTCIL_CPP
+ID_CVTCIL_C___1900          EQU 0106h ; Utc1900_ID_CVTCIL_C
+ID_CVTCIL_CPP_1900          EQU 0107h ; Utc1900_ID_CVTCIL_CPP
+
+
+
 
 ;------------------------------------------------------------------------------
 ; MS-COFF defines:

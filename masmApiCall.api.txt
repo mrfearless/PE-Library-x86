@@ -41,6 +41,8 @@ PE_ImportDirectoryEntryDLL,hPE,dwImportDirectoryEntryIndex
 PE_ImportDirectoryEntryFunctions,hPE,dwImportDirectoryEntryIndex,lpdwFunctionsList
 ; Common Info Functions:
 PE_RichSignatureDecode,hPE,lpdwDecodedRichSignature,lpdwSize
+PE_RichSignatureCompIDs,hPE
+PE_RichSignatureProduct,hPE,dwCompIDIndex,lpszProduct
 PE_Machine,hPE
 PE_Characteristics,hPE
 PE_LinkerVersion,hPE
@@ -59,4 +61,4 @@ PE_OffsetToRVA,hPE,dwOffset
 PE_FileName,hPE
 PE_FileNameOnly,hPE,lpszFileNameOnly
 PE_FileSize,hPE
-
+PE_FileOffset,hPE,dwMappedAddress
