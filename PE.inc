@@ -64,8 +64,12 @@ PE_SectionHeaderByName      PROTO :DWORD,:DWORD                     ; hPE, lpszS
 PE_SectionHeaderByType      PROTO :DWORD,:DWORD                     ; hPE, dwSectionType
 PE_SectionHeaderByAddr      PROTO :DWORD,:DWORD                     ; hPE, dwAddress
 PE_SectionName              PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
+PE_SectionSizeRaw           PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
 PE_SectionCharacteristics   PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
 PE_SectionType              PROTO :DWORD,:DWORD                     ; hPE, dwSectionIndex
+
+PE_SectionDataByIndex       PROTO :DWORD,:DWORD,:DWORD              ; hPE, dwSectionIndex, lpdwSectionDataSize
+PE_SectionDataByName        PROTO :DWORD,:DWORD,:DWORD              ; hPE, lpszSectionName, lpdwSectionDataSize
 
 ; Section Manipulate Functions: (WIP - NOT FINISHED - DONT USE)
 PE_SectionAdd               PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszSectionName, dwSectionSize, dwSectionCharacteristics

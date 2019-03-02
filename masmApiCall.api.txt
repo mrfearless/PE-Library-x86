@@ -25,6 +25,9 @@ PE_SectionHeaderByName,hPE,lpszSectionName
 PE_SectionHeaderByType,hPE,dwSectionType
 PE_SectionHeaderByAddr,hPE,dwAddress
 PE_SectionName,hPE,dwSectionIndex
+PE_SectionSizeRaw,hPE,dwSectionIndex
+PE_SectionDataByIndex,hPE,dwSectionIndex,lpdwSectionDataSize
+PE_SectionDataByName,hPE,lpszSectionName,lpdwSectionDataSize
 PE_SectionAdd,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics
 PE_SectionDelete,hPE,lpszSectionName,dwSectionIndex
 PE_SectionInsert,hPE,lpszSectionName,dwSectionSize,dwSectionCharacteristics,dwSectionIndex

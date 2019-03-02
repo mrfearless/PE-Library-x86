@@ -1230,7 +1230,8 @@ PE_ALIGN
 PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
     LOCAL pHeaderSections:DWORD
     LOCAL pCurrentSection:DWORD
-    LOCAL nSections:DWORD
+    LOCAL lpszName:DWORD
+    LOCAL nTotalSections:DWORD
     LOCAL nSection:DWORD
     
     .IF hPE == NULL
@@ -1248,21 +1249,22 @@ PE_SectionHeaderByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD
         ret
     .ENDIF
     mov pHeaderSections, eax
+    mov pCurrentSection, eax
     
     Invoke PE_SectionHeaderCount, hPE
+    mov nTotalSections, eax
     mov ebx, pCurrentSection
-    mov nSections, eax
     mov nSection, 0
     mov eax, 0
-    .WHILE eax < nSection    
-        .IF [ebx].IMAGE_SECTION_HEADER.Name1 != 0
-            lea ebx, [ebx].IMAGE_SECTION_HEADER.Name1
-            Invoke lstrcmp, ebx, lpszSectionName
-            .IF eax == 0 ; match
-                mov eax, pCurrentSection
-                ret
-            .ENDIF
+    .WHILE eax < nTotalSections    
+        lea eax, [ebx].IMAGE_SECTION_HEADER.Name1
+        mov lpszName, eax
+        Invoke lstrcmp, lpszName, lpszSectionName
+        .IF eax == 0 ; match
+            mov eax, pCurrentSection
+            ret
         .ENDIF
+
         add pCurrentSection, SIZEOF IMAGE_SECTION_HEADER
         mov ebx, pCurrentSection
         inc nSection
@@ -1281,7 +1283,7 @@ PE_ALIGN
 PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     LOCAL pHeaderSections:DWORD
     LOCAL pCurrentSection:DWORD
-    LOCAL nSections:DWORD
+    LOCAL nTotalSections:DWORD
     LOCAL nSection:DWORD
     
     .IF hPE == NULL
@@ -1303,10 +1305,10 @@ PE_SectionHeaderByType PROC USES EBX hPE:DWORD, dwSectionType:DWORD
     
     Invoke PE_SectionHeaderCount, hPE
     mov ebx, pCurrentSection
-    mov nSections, eax
+    mov nTotalSections, eax
     mov nSection, 0
     mov eax, 0
-    .WHILE eax < nSections
+    .WHILE eax < nTotalSections
         .IF [ebx].IMAGE_SECTION_HEADER.Name1 != 0
             lea ebx, [ebx].IMAGE_SECTION_HEADER.Name1
             mov ebx, [ebx]
@@ -1498,6 +1500,26 @@ PE_SectionName ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
+; PE_SectionSizeRaw - Get section raw size for specified section (dwSectionIndex)
+; Returns: size of section or 0
+;----------------------------------------------------------------------------
+PE_SectionSizeRaw PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_SectionHeaderByIndex, hPE, dwSectionIndex
+    .IF eax == 0
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, eax
+    mov eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
+    ret
+PE_SectionSizeRaw ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
 ; PE_SectionCharacteristics - Get section characteristics for specified 
 ; section (dwSectionIndex)
 ; Returns: section Characteristics or NULL
@@ -1566,6 +1588,84 @@ PE_SectionType PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD
     ret
 PE_SectionType ENDP
 
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionDataByIndex - Get pointer to section's raw data 
+; Returns: pointer to section data or null
+;----------------------------------------------------------------------------
+PE_SectionDataByIndex PROC USES EBX hPE:DWORD, dwSectionIndex:DWORD, lpdwSectionDataSize:DWORD
+    LOCAL pSectionHeader:DWORD
+    LOCAL pSectionData:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL dwSizeSectionData:DWORD
+    
+    Invoke PE_SectionHeaderByIndex, hPE, dwSectionIndex
+    .IF eax == 0
+        ret
+    .ENDIF
+    mov pSectionHeader, eax
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    
+    mov ebx, pSectionHeader
+    mov eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
+    ;.IF eax == 0
+    ;    mov eax, [ebx].IMAGE_SECTION_HEADER.Misc.VirtualSize
+    ;.ENDIF
+    mov dwSizeSectionData, eax
+    mov eax, [ebx].IMAGE_SECTION_HEADER.PointerToRawData
+    add eax, PEMemMapPtr
+    mov pSectionData, eax
+    
+    .IF lpdwSectionDataSize != 0
+        mov ebx, lpdwSectionDataSize
+        mov eax, dwSizeSectionData
+        mov [ebx], eax
+    .ENDIF
+
+    mov eax, pSectionData
+    ret
+PE_SectionDataByIndex ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_SectionDataByName - Get pointer to section's raw data 
+; Returns: pointer to section data or null
+;----------------------------------------------------------------------------
+PE_SectionDataByName PROC USES EBX hPE:DWORD, lpszSectionName:DWORD, lpdwSectionDataSize:DWORD
+    LOCAL pSectionHeader:DWORD
+    LOCAL pSectionData:DWORD
+    LOCAL PEMemMapPtr:DWORD
+    LOCAL dwSizeSectionData:DWORD
+    
+    Invoke PE_SectionHeaderByName, hPE, lpszSectionName
+    .IF eax == 0
+        ret
+    .ENDIF
+    mov pSectionHeader, eax
+    
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEMemMapPtr
+    mov PEMemMapPtr, eax
+    
+    mov ebx, pSectionHeader
+    mov eax, [ebx].IMAGE_SECTION_HEADER.SizeOfRawData
+    mov dwSizeSectionData, eax
+    mov eax, [ebx].IMAGE_SECTION_HEADER.PointerToRawData
+    add eax, PEMemMapPtr
+    mov pSectionData, eax
+    
+    .IF lpdwSectionDataSize != 0
+        mov ebx, lpdwSectionDataSize
+        mov eax, dwSizeSectionData
+        mov [ebx], eax
+    .ENDIF
+
+    mov eax, pSectionData
+    ret
+PE_SectionDataByName ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
