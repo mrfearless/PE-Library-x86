@@ -469,6 +469,11 @@ SIZEOF_STANDARD_FIELDS_PE64     EQU 24d
 SIZEOF_WINDOWS_FIELDS_PE32      EQU 68d
 SIZEOF_WINDOWS_FIELDS_PE64      EQU 88d
 
+; Hash type for PE_Hash
+HASH_MD5                        EQU 0
+HASH_SHA1                       EQU 1
+HASH_SHA256                     EQU 2
+
 ; Rich Product IDs:
 ;
 ; Info compiled from:

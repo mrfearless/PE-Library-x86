@@ -3077,7 +3077,7 @@ PE_ALIGN
 ; lpHashBytes can be 0 if we want to return the size only in lpdwHashSize for
 ; allocating correct size of buffer, otherwise ensure lpHashBytes is large
 ; enough for the hash type.
-; dwHashType: 0=MD5, 1=SHA1, 2=SHA256
+; dwHashType: HASH_MD5, HASH_SHA1, or HASH_SHA256
 ;
 ; Code adapted from Michael B: 
 ; https://github.com/DownWithUp/CommandPrompt-Add-Ons/blob/master/FASM/SHA256.asm
@@ -3097,7 +3097,6 @@ PE_Hash PROC USES EBX hPE:DWORD, dwHashType:DWORD, lpHashBytes:DWORD, lpdwHashSi
     PROV_RSA_AES        EQU 24
     HP_HASHVAL          EQU 2h
     HP_HASHSIZE         EQU 4h
-    
     ALG_CLASS_HASH      EQU (4 SHL 13)
     ALG_TYPE_ANY        EQU 0
     ALG_SID_MD5         EQU 3
@@ -3107,10 +3106,9 @@ PE_Hash PROC USES EBX hPE:DWORD, dwHashType:DWORD, lpHashBytes:DWORD, lpdwHashSi
     CALG_SHA            EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_SHA)
     CALG_SHA1           EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_SHA1)
     CALG_SHA_256        EQU (ALG_CLASS_HASH OR ALG_TYPE_ANY OR ALG_SID_SHA_256)  
-    ;CALG_SHA_256        EQU 800Ch
-    MD5LEN              EQU 16
-    SHA1LEN             EQU 20
-    SHA256LEN           EQU 64
+    MD5LEN              EQU 16 ; requires buffer of 32 chars long
+    SHA1LEN             EQU 20 ; requires buffer of 40 chars long
+    SHA256LEN           EQU 32 ; requires buffer of 64 chars long
     
     .CODE
     
