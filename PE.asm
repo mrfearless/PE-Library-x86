@@ -997,63 +997,20 @@ PE_HeaderDOS ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_HeaderNT - returns pointer to IMAGE_NT_HEADERS of PE file
+; PE_HeaderStub - returns pointer to DOS Stub
 ;----------------------------------------------------------------------------
-PE_HeaderNT PROC USES EBX hPE:DWORD
+PE_HeaderStub PROC USES EBX hPE:DWORD
     .IF hPE == NULL
         xor eax, eax
         ret
     .ENDIF
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PENTHeader
-    ; eax points to IMAGE_NT_HEADERS
-    ret
-PE_HeaderNT ENDP
-
-PE_ALIGN
-;----------------------------------------------------------------------------
-; PE_HeaderFile - return pointer to IMAGE_FILE_HEADER of PE file
-;----------------------------------------------------------------------------
-PE_HeaderFile PROC USES EBX hPE:DWORD
-    .IF hPE == NULL
-        xor eax, eax
+    Invoke PE_HeaderDOS, hPE
+    .IF eax == 0
         ret
     .ENDIF
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PEFileHeader
-    ; eax points to IMAGE_FILE_HEADER
+    add eax, SIZEOF IMAGE_DOS_HEADER
     ret
-PE_HeaderFile ENDP
-
-PE_ALIGN
-;----------------------------------------------------------------------------
-; PE_HeaderOptional - returns pointer to IMAGE_OPTIONAL_HEADER (32/64)
-;----------------------------------------------------------------------------
-PE_HeaderOptional PROC USES EBX hPE:DWORD
-    .IF hPE == NULL
-        xor eax, eax
-        ret
-    .ENDIF
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PEOptionalHeader
-    ; eax points to IMAGE_OPTIONAL_HEADER (32/64)
-    ret
-PE_HeaderOptional ENDP
-
-PE_ALIGN
-;----------------------------------------------------------------------------
-; PE_HeaderSections - returns pointer to array of IMAGE_SECTION_HEADER
-;----------------------------------------------------------------------------
-PE_HeaderSections PROC USES EBX hPE:DWORD
-    .IF hPE == NULL
-        xor eax, eax
-        ret
-    .ENDIF
-    mov ebx, hPE
-    mov eax, [ebx].PEINFO.PESectionTable
-    ; eax points to array of IMAGE_SECTION_HEADER entries
-    ret
-PE_HeaderSections ENDP
+PE_HeaderStub ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
@@ -1132,21 +1089,77 @@ PE_HeaderRich ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_HeaderStub - returns pointer to DOS Stub
+; PE_HeaderNT - returns pointer to IMAGE_NT_HEADERS of PE file
 ;----------------------------------------------------------------------------
-PE_HeaderStub PROC USES EBX hPE:DWORD
+PE_HeaderNT PROC USES EBX hPE:DWORD
     .IF hPE == NULL
         xor eax, eax
         ret
     .ENDIF
-    Invoke PE_HeaderDOS, hPE
-    .IF eax == 0
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PENTHeader
+    ; eax points to IMAGE_NT_HEADERS
+    ret
+PE_HeaderNT ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_HeaderFile - return pointer to IMAGE_FILE_HEADER of PE file
+;----------------------------------------------------------------------------
+PE_HeaderFile PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
         ret
     .ENDIF
-    add eax, SIZEOF IMAGE_DOS_HEADER
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEFileHeader
+    ; eax points to IMAGE_FILE_HEADER
     ret
-PE_HeaderStub ENDP
+PE_HeaderFile ENDP
 
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_HeaderOptional - returns pointer to IMAGE_OPTIONAL_HEADER (32/64)
+;----------------------------------------------------------------------------
+PE_HeaderOptional PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEOptionalHeader
+    ; eax points to IMAGE_OPTIONAL_HEADER (32/64)
+    ret
+PE_HeaderOptional ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_HeaderDataDirectories - returns pointer to data directories
+;----------------------------------------------------------------------------
+PE_HeaderDataDirectories PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEDataDirectories
+    ret
+PE_HeaderDataDirectories ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_HeaderSections - returns pointer to array of IMAGE_SECTION_HEADER
+;----------------------------------------------------------------------------
+PE_HeaderSections PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PESectionTable
+    ; eax points to array of IMAGE_SECTION_HEADER entries
+    ret
+PE_HeaderSections ENDP
 
 
 
@@ -2120,8 +2133,6 @@ PE_ImportDirectoryEntryFunctions PROC USES EBX hPE:DWORD, dwImportDirectoryEntry
     ret
 PE_ImportDirectoryEntryFunctions ENDP
 
-
-
 PE_ALIGN
 ;----------------------------------------------------------------------------
 ; PE_ImportDirectoryEntryDLL - Get DLL name for specified ImportDirectoryTable 
@@ -2165,6 +2176,40 @@ PE_ImportDirectoryEntryDLL PROC USES EBX hPE:DWORD, dwImportDirectoryEntryIndex:
     ret
 PE_ImportDirectoryEntryDLL ENDP
 
+
+
+
+;############################################################################
+;  D A T A   D I R E C T O R I E S   F U N C T I O N S
+;############################################################################
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_DataDirectories - returns pointer to data directories
+;----------------------------------------------------------------------------
+PE_DataDirectories PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PEDataDirectories
+    ret
+PE_DataDirectories ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_DataDirectoriesCount - returns number of data directories
+;----------------------------------------------------------------------------
+PE_DataDirectoriesCount PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    mov ebx, hPE
+    mov eax, [ebx].PEINFO.PENumberOfRvaAndSizes
+    ret
+PE_DataDirectoriesCount ENDP
 
 
 
@@ -2900,7 +2945,7 @@ PE_LinkerVersion PROC USES EBX hPE:DWORD
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
-    Invoke PE_Is64, hPE
+    Invoke PE_PE64, hPE
     .IF eax == TRUE
         movzx eax, byte ptr [ebx].IMAGE_OPTIONAL_HEADER64.MajorLinkerVersion
         mov ah, al
@@ -2927,7 +2972,7 @@ PE_AddressOfEntryPoint PROC USES EBX hPE:DWORD
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
-    Invoke PE_Is64, hPE
+    Invoke PE_PE64, hPE
     .IF eax == TRUE
         mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.AddressOfEntryPoint
     .ELSE
@@ -2969,7 +3014,7 @@ PE_SizeOfImage PROC USES EBX hPE:DWORD
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
-    Invoke PE_Is64, hPE
+    Invoke PE_PE64, hPE
     .IF eax == TRUE
         mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.SizeOfImage
     .ELSE
@@ -2990,7 +3035,7 @@ PE_CheckSum PROC USES EBX hPE:DWORD
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
-    Invoke PE_Is64, hPE
+    Invoke PE_PE64, hPE
     .IF eax == TRUE
         mov eax, [ebx].IMAGE_OPTIONAL_HEADER64.CheckSum
     .ELSE
@@ -3011,7 +3056,7 @@ PE_Subsystem PROC USES EBX hPE:DWORD
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
-    Invoke PE_Is64, hPE
+    Invoke PE_PE64, hPE
     .IF eax == TRUE
         movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.Subsystem
     .ELSE
@@ -3032,7 +3077,7 @@ PE_DllCharacteristics PROC USES EBX hPE:DWORD
     Invoke PE_HeaderOptional, hPE
     mov ebx, eax
     
-    Invoke PE_Is64, hPE
+    Invoke PE_PE64, hPE
     .IF eax == TRUE
         movzx eax, word ptr [ebx].IMAGE_OPTIONAL_HEADER64.DllCharacteristics
     .ELSE
@@ -3041,12 +3086,11 @@ PE_DllCharacteristics PROC USES EBX hPE:DWORD
     ret
 PE_DllCharacteristics ENDP
 
-
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_IsDll - returns TRUE if DLL or FALSE otherwise
+; PE_DLL - returns TRUE if DLL or FALSE otherwise
 ;----------------------------------------------------------------------------
-PE_IsDll PROC USES EBX hPE:DWORD
+PE_DLL PROC USES EBX hPE:DWORD
     .IF hPE == NULL
         xor eax, eax
         ret
@@ -3054,13 +3098,13 @@ PE_IsDll PROC USES EBX hPE:DWORD
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PEDLL
     ret
-PE_IsDll ENDP
+PE_DLL ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------
-; PE_Is64 - returns TRUE if PE32+ (PE64) or FALSE if PE32
+; PE_PE64 - returns TRUE if PE32+ (PE64) or FALSE if PE32
 ;----------------------------------------------------------------------------
-PE_Is64 PROC USES EBX hPE:DWORD
+PE_PE64 PROC USES EBX hPE:DWORD
     .IF hPE == NULL
         xor eax, eax
         ret
@@ -3068,7 +3112,50 @@ PE_Is64 PROC USES EBX hPE:DWORD
     mov ebx, hPE
     mov eax, [ebx].PEINFO.PE64
     ret
-PE_Is64 ENDP
+PE_PE64 ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_ASLR - returns TRUE if ASLR is enabled or FALSE otherwise
+;----------------------------------------------------------------------------
+PE_ASLR PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_DllCharacteristics, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    and eax, IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE
+    .IF eax == IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE
+        mov eax, TRUE
+    .ELSE
+        xor eax, eax
+    .ENDIF
+    ret
+PE_ASLR ENDP
+
+PE_ALIGN
+;----------------------------------------------------------------------------
+; PE_DEP - returns TRUE if DEP is enabled or FALSE otherwise
+;----------------------------------------------------------------------------
+PE_DEP PROC USES EBX hPE:DWORD
+    .IF hPE == NULL
+        xor eax, eax
+        ret
+    .ENDIF
+    Invoke PE_DllCharacteristics, hPE
+    .IF eax == 0
+        ret
+    .ENDIF
+    and eax, IMAGE_DLLCHARACTERISTICS_NX_COMPAT
+    .IF eax == IMAGE_DLLCHARACTERISTICS_NX_COMPAT
+        mov eax, TRUE
+    .ELSE
+        xor eax, eax
+    .ENDIF
+PE_DEP ENDP
 
 PE_ALIGN
 ;----------------------------------------------------------------------------

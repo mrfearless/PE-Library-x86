@@ -11,12 +11,13 @@ PE_Finish,hPE
 PE_GetError
 ; Header Pointer Functions:
 PE_HeaderDOS,hPE
+PE_HeaderStub,hPE
+PE_HeaderRich,hPE
 PE_HeaderNT,hPE
 PE_HeaderFile,hPE
 PE_HeaderOptional,hPE
 PE_HeaderSections,hPE
-PE_HeaderRich,hPE
-PE_HeaderStub,hPE
+PE_HeaderDataDirectories,hPE
 ; Section Functions:
 PE_SectionHeaderCount,hPE
 PE_SectionsHeaders,hPE
@@ -42,6 +43,9 @@ PE_ImportAddressTable,hPE
 PE_ImportDirectoryEntryCount,hPE
 PE_ImportDirectoryEntryDLL,hPE,dwImportDirectoryEntryIndex
 PE_ImportDirectoryEntryFunctions,hPE,dwImportDirectoryEntryIndex,lpdwFunctionsList
+; Data Directory Functions:
+PE_DataDirectoriesCount,hPE
+PE_DataDirectories,hPE
 ; Common Info Functions:
 PE_RichSignatureDecode,hPE,lpdwDecodedRichSignature,lpdwSize
 PE_RichSignatureCompIDs,hPE
@@ -55,8 +59,10 @@ PE_SizeOfImage,hPE
 PE_CheckSum,hPE
 PE_Subsystem,hPE
 PE_DllCharacteristics,hPE
-PE_IsDll,hPE
-PE_Is64,hPE
+PE_DLL,hPE
+PE_PE64,hPE
+PE_ASLR,hPE
+PE_DEP,hPE
 PE_Hash,hPE,dwHashType,lpHashBytes,lpdwHashSize
 ; Helper Functions:
 PE_RVAToOffset,hPE,dwRVA

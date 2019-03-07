@@ -49,12 +49,13 @@ PE_GetError                 PROTO                                   ;
 
 ; Header Pointer Functions:
 PE_HeaderDOS                PROTO :DWORD                            ; hPE
+PE_HeaderStub               PROTO :DWORD                            ; hPE
+PE_HeaderRich               PROTO :DWORD                            ; hPE
 PE_HeaderNT                 PROTO :DWORD                            ; hPE
 PE_HeaderFile               PROTO :DWORD                            ; hPE
 PE_HeaderOptional           PROTO :DWORD                            ; hPE
 PE_HeaderSections           PROTO :DWORD                            ; hPE
-PE_HeaderRich               PROTO :DWORD                            ; hPE
-PE_HeaderStub               PROTO :DWORD                            ; hPE
+PE_HeaderDataDirectories    PROTO :DWORD                            ; hPE
 
 ; Section Functions:
 PE_SectionHeaderCount       PROTO :DWORD                            ; hPE
@@ -86,6 +87,10 @@ PE_ImportDirectoryEntryCount PROTO :DWORD                           ; hPE
 PE_ImportDirectoryEntryDLL  PROTO :DWORD,:DWORD                     ; hPE, dwImportDirectoryEntryIndex
 PE_ImportDirectoryEntryFunctions PROTO :DWORD,:DWORD,:DWORD         ; hPE, dwImportDirectoryEntryIndex, lpdwFunctionsList
 
+; Data Directory Functions:
+PE_DataDirectoriesCount     PROTO :DWORD                            ; hPE
+PE_DataDirectories          PROTO :DWORD                            ; hPE
+
 ; Common Info Functions
 ;------------------------------------------------------------------------------
 ; Note: Only some functions are provided for reading commonly accessed fields
@@ -105,8 +110,10 @@ PE_SizeOfImage              PROTO :DWORD                            ; hPE
 PE_CheckSum                 PROTO :DWORD                            ; hPE
 PE_Subsystem                PROTO :DWORD                            ; hPE
 PE_DllCharacteristics       PROTO :DWORD                            ; hPE
-PE_IsDll                    PROTO :DWORD                            ; hPE
-PE_Is64                     PROTO :DWORD                            ; hPE
+PE_DLL                      PROTO :DWORD                            ; hPE
+PE_PE64                     PROTO :DWORD                            ; hPE
+PE_ASLR                     PROTO :DWORD                            ; hPE
+PE_DEP                      PROTO :DWORD                            ; hPE
 PE_Hash                     PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, dwHashType, lpHashBytes, lpdwHashSize
 
 ; Helper Functions:
@@ -801,15 +808,15 @@ IMAGE_DLLCHARACTERISTICS_RESERVED2             EQU 0002h ; Reserved, must be zer
 IMAGE_DLLCHARACTERISTICS_RESERVED3             EQU 0004h ; Reserved, must be zero.
 IMAGE_DLLCHARACTERISTICS_RESERVED4             EQU 0008h ; Reserved, must be zero.
 IMAGE_DLLCHARACTERISTICS_HIGH_ENTROPY_VA       EQU 0020h ; Image can handle a high entropy 64-bit virtual address space.
-IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE          EQU 0040h ; DLL can be relocated at load time.
+IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE          EQU 0040h ; DLL can be relocated at load time. (ASLR)
 IMAGE_DLLCHARACTERISTICS_FORCE_INTEGRITY       EQU 0080h ; Code Integrity checks are enforced.
-IMAGE_DLLCHARACTERISTICS_NX_COMPAT             EQU 0100h ; Image is NX compatible.
+IMAGE_DLLCHARACTERISTICS_NX_COMPAT             EQU 0100h ; Image is NX compatible. (DEP)
 IMAGE_DLLCHARACTERISTICS_NO_ISOLATION          EQU 0200h ; Isolation aware, but do not isolate the image.
 IMAGE_DLLCHARACTERISTICS_NO_SEH                EQU 0400h ; Does not use structured exception (SE) handling. No SE handler may be called in this image.
 IMAGE_DLLCHARACTERISTICS_NO_BIND               EQU 0800h ; Do not bind the image.
 IMAGE_DLLCHARACTERISTICS_APPCONTAINER          EQU 1000h ; Image must execute in an AppContainer.
 IMAGE_DLLCHARACTERISTICS_WDM_DRIVER            EQU 2000h ; A WDM driver.
-IMAGE_DLLCHARACTERISTICS_GUARD_CF              EQU 4000h ; Image supports Control Flow Guard.
+IMAGE_DLLCHARACTERISTICS_GUARD_CF              EQU 4000h ; Image supports Control Flow Guard. (CFG)
 IMAGE_DLLCHARACTERISTICS_TERMINAL_SERVER_AWARE EQU 8000h ; Terminal Server aware.
 
 ; Section Flags:
