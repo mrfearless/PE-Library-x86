@@ -4,10 +4,6 @@
 ;
 ; Copyright (c) 2019 by fearless
 ;
-; All Rights Reserved
-;
-; http://www.LetTheLight.in
-;
 ; http://github.com/mrfearless
 ;
 ;
@@ -87,6 +83,18 @@ PE_ImportDirectoryEntryCount PROTO :DWORD                           ; hPE
 PE_ImportDirectoryEntryDLL  PROTO :DWORD,:DWORD                     ; hPE, dwImportDirectoryEntryIndex
 PE_ImportDirectoryEntryFunctions PROTO :DWORD,:DWORD,:DWORD         ; hPE, dwImportDirectoryEntryIndex, lpdwFunctionsList
 
+; Export Functions
+PE_ExportDirectoryTable     PROTO :DWORD                            ; hPE
+PE_ExportAddressTable       PROTO :DWORD                            ; hPE
+PE_ExportNamePointerTable   PROTO :DWORD                            ; hPE
+PE_ExportOrdinalTable       PROTO :DWORD                            ; hPE
+PE_ExportNameCount          PROTO :DWORD                            ; hPE
+PE_ExportFunctionCount      PROTO :DWORD                            ; hPE
+PE_ExportOrdinalBase        PROTO :DWORD                            ; hPE
+PE_ExportDLLName            PROTO :DWORD                            ; hPE
+PE_ExportFunctionNames      PROTO :DWORD,:DWORD                     ; hPE, lpdwFunctionsList
+PE_ExportFunctionNameToDef  PROTO :DWORD,:DWORD,:DWORD,:DWORD       ; hPE, lpszDefFilename, bUseFilename, bRemoveUnderscore
+
 ; Data Directory Functions:
 PE_DataDirectoriesCount     PROTO :DWORD                            ; hPE
 PE_DataDirectories          PROTO :DWORD                            ; hPE
@@ -124,6 +132,64 @@ PE_FileName                 PROTO :DWORD                            ; hPE
 PE_FileNameOnly             PROTO :DWORD,:DWORD                     ; hPE, lpszFileNameOnly
 PE_FileSize                 PROTO :DWORD                            ; hPE
 PE_FileOffset               PROTO :DWORD,:DWORD                     ; hPE, dwMappedAddress
+
+
+;------------------------------------------------------------------------------
+; Structures for internal use
+;------------------------------------------------------------------------------
+IFNDEF PEINFO
+PEINFO                      STRUCT
+    PEOpenMode              DD 0
+    PEHandle                DD 0
+    PEFilename              DB MAX_PATH DUP (0)
+    PEFilesize              DD 0
+    PEVersion               DD 0
+    PE64                    DD 0
+    PEDLL                   DD 0
+    PEDOSHeader             DD 0
+    PERichHeader            DD 0
+    PERichCompIDs           DD 0
+    PENTHeader              DD 0
+    PEFileHeader            DD 0
+    PEOptionalHeader        DD 0
+    PESectionTable          DD 0
+    PESectionCount          DD 0
+    PEOptionalHeaderSize    DD 0
+    PEImageBase             DD 0
+    PE64ImageBase           DQ 0
+    PENumberOfRvaAndSizes   DD 0
+    PEDataDirectories       DD 0
+    PEExportCount           DD 0
+    PEExportDirectoryTable  DD 0
+    PEExportAddressTable    DD 0
+    PEExportNamePointerTable DD 0
+    PEExportOrdinalTable    DD 0
+    PEExportNameTable       DD 0
+    PEImportDirectoryCount  DD 0
+    PEImportDirectoryTable  DD 0
+    PEImportLookupTable     DD 0
+    PEImportNameTable       DD 0
+    PEImportAddressTable    DD 0
+    PEResourceDirectoryTable DD 0
+    PEResourceDirectoryEntries DD 0
+    PEResourceDirectoryString DD 0
+    PEResourceDataEntry     DD 0
+    PEExceptionTable        DD 0
+    PECertificateTable      DD 0
+    PEBaseRelocationTable   DD 0
+    PEDebugData             DD 0
+    PEGlobalPtr             DD 0
+    PETLSTable              DD 0
+    PELoadConfigTable       DD 0
+    PEBoundImportTable      DD 0
+    PEDelayImportDescriptor DD 0
+    PECLRRuntimeHeader      DD 0
+    PEMemMapPtr             DD 0
+    PEMemMapHandle          DD 0
+    PEFileHandle            DD 0
+PEINFO                      ENDS
+ENDIF
+
 
 ;------------------------------------------------------------------------------
 ; PE Structures
@@ -404,6 +470,15 @@ IMAGE_DOS_HEADER ENDS
 ENDIF
 
 .CONST
+;------------------------------------------
+; Conditional for PE Library DLL compiling
+;------------------------------------------
+IFDEF PELIB_DLL
+    PE_LIBEND TEXTEQU <>
+ELSE
+    PE_LIBEND TEXTEQU <END>
+ENDIF
+
 ;------------------------------------------------------------------------------
 ; PE Constants
 ;------------------------------------------------------------------------------
